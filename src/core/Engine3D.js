@@ -10,20 +10,20 @@ export class Engine3D {
     this.camera = null;
     this.renderer = null;
     this.controls = null;
-    
+
     // Simulation state variables
-    this.rotationSpeed = 0.01;
+    this.rotationSpeed = 0.0;
     this.bpm = 72;
     this.isBeating = true;
     this.isFlowing = true;
     this.isCrossSection = false;
     this.showLabels = true;
     this.sliceDepth = 0.0;
-    
+
     // Animation timers
     this.clock = new THREE.Clock();
     this.beatTimer = 0;
-    
+
     // Selection and interaction
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
@@ -46,11 +46,11 @@ export class Engine3D {
     this.arScanPlane = null;
     this.podiumMat = null;
     this.rimRing = null;
-    
+
     // Clipping plane for cross sections
     this.clippingPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 100.0);
     this.materials = null;
-    
+
     // Label anchors for projection
     this.labelAnchors = {
       left_ventricle: new THREE.Vector3(-0.7, -0.6, 0.4),
@@ -74,7 +74,7 @@ export class Engine3D {
     this.loadModels();
     this.setupLabels();
     this.setupEvents();
-    
+
     // Start animation loop
     this.renderer.setAnimationLoop(() => this.animate());
   }
@@ -102,10 +102,10 @@ export class Engine3D {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    
+
     // Enable WebXR support
     this.renderer.xr.enabled = true;
-    
+
     // Enable local clipping plane
     this.renderer.localClippingEnabled = true;
 
@@ -152,7 +152,7 @@ export class Engine3D {
     this.controls.minDistance = 1.5;
     this.controls.maxDistance = 15.0;
     this.controls.maxPolarAngle = Math.PI / 1.8; // prevent going too far below floor
-    
+
     // Initial target at chest level of skeleton
     this.controls.target.set(0, 1.0, 0);
   }
@@ -286,7 +286,7 @@ export class Engine3D {
     for (let h = 0; h < 2; h++) {
       const handGroup = h === 0 ? this.leftSimHand : this.rightSimHand;
       const joints = [];
-      
+
       // Wrist joint (index 0)
       const wrist = new THREE.Mesh(jointGeo, jointMat);
       wrist.position.set(0, 0, 0);
@@ -320,7 +320,7 @@ export class Engine3D {
           const jointMesh = joints[baseIndex + k];
           points.push(jointMesh.position);
         }
-        
+
         const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
         const line = new THREE.Line(lineGeo, lineMat);
         handGroup.add(line);
@@ -330,23 +330,23 @@ export class Engine3D {
 
   setAppMode(mode) {
     this.appMode = mode; // 'desktop', 'ar', 'vr', 'mr', 'xr'
-    
+
     // Reset all body classes
     document.body.classList.remove('body-mode-ar', 'body-mode-vr', 'body-mode-mr', 'body-mode-xr');
-    
+
     // Hide all simulated environment groups by default
     if (this.arSimGroup) this.arSimGroup.visible = false;
     if (this.vrSimGroup) this.vrSimGroup.visible = false;
     if (this.mrSimGroup) this.mrSimGroup.visible = false;
-    
+
     // Handle status banner text & icon updates
     const banner = document.getElementById('mode-banner');
     const bannerText = document.getElementById('mode-banner-text');
     const bannerIcon = document.getElementById('mode-banner-icon');
-    
+
     const panelLeft = document.getElementById('panel-left');
     const panelRight = document.getElementById('panel-right');
-    
+
     if (mode === 'desktop') {
       if (this.scene) this.scene.background = new THREE.Color(0x050a12);
       if (banner) banner.classList.add('hidden');
@@ -356,7 +356,7 @@ export class Engine3D {
     } else {
       if (banner) banner.classList.remove('hidden');
       this.setVisualizerMode('focused');
-      
+
       // Scale down the heart in simulated AR/VR/MR/XR modes so it fits the viewport & podium perfectly (0.6x)
       if (this.heartGroup) {
         this.heartGroup.scale.set(0.6, 0.6, 0.6);
@@ -366,11 +366,11 @@ export class Engine3D {
         this.controls.target.set(0, 0.6, 0);
         this.camera.position.set(0, 0.6, 3.8); // Adjust camera target and distance accordingly
       }
-      
+
       // Collapse sidebars for clean immersive simulation
       if (panelLeft) panelLeft.classList.add('collapsed');
       if (panelRight) panelRight.classList.add('collapsed');
-      
+
       if (mode === 'ar') {
         document.body.classList.add('body-mode-ar');
         if (this.scene) this.scene.background = null;
@@ -383,7 +383,7 @@ export class Engine3D {
         if (bannerText) bannerText.textContent = 'Simulated VR Lab';
         if (bannerIcon) bannerIcon.textContent = '🟣';
         if (this.vrSimGroup) this.vrSimGroup.visible = true;
-        
+
         // Use purple color scheme
         if (this.rimRing) this.rimRing.material.color.setHex(0xa855f7);
         if (this.podiumMat) {
@@ -402,7 +402,7 @@ export class Engine3D {
         if (bannerText) bannerText.textContent = 'Simulated Auto XR';
         if (bannerIcon) bannerIcon.textContent = '💖';
         if (this.vrSimGroup) this.vrSimGroup.visible = true;
-        
+
         // Use hot pink/magenta color scheme for Auto XR
         if (this.rimRing) this.rimRing.material.color.setHex(0xff0080);
         if (this.podiumMat) {
@@ -417,33 +417,33 @@ export class Engine3D {
     const loader = new ModelLoader();
     const progressEl = document.getElementById('progress-bar');
     const loaderStatusEl = document.getElementById('loader-status');
-    
+
     if (loaderStatusEl) loaderStatusEl.textContent = 'Loading skeletal system...';
-    
+
     loader.loadSkeletonModel((percent) => {
       if (progressEl) progressEl.style.width = `${percent * 0.4}%`;
     }).then((skeletonGroup) => {
       this.skeletonGroup = skeletonGroup;
       this.scene.add(this.skeletonGroup);
-      
+
       if (loaderStatusEl) loaderStatusEl.textContent = 'Loading cardiovascular system...';
-      
+
       return loader.loadHeartModel(this.materials, (percent) => {
         if (progressEl) progressEl.style.width = `${40 + percent * 0.6}%`;
       });
     }).then((heartGroup) => {
       this.heartGroup = heartGroup;
-      
+
       // Add particles as child of heartGroup so they scale/move together
       if (this.particles) {
         this.heartGroup.add(this.particles);
       }
-      
+
       this.scene.add(this.heartGroup);
-      
+
       // Default to landing page skeleton view
       this.setVisualizerMode('skeleton');
-      
+
       // Complete Loading
       setTimeout(() => {
         const loaderOverlay = document.getElementById('loader');
@@ -459,18 +459,18 @@ export class Engine3D {
       mode = 'focused';
     }
     this.visualizerMode = mode; // 'skeleton' or 'focused'
-    
+
     // Sync the UI checkbox state
     const viewModeSwitch = document.getElementById('switch-view-mode');
     if (viewModeSwitch) {
       viewModeSwitch.checked = (mode === 'focused');
     }
-    
+
     if (mode === 'skeleton') {
       this.showLabels = false;
       this.hideAllLabels();
       this.clearSelection();
-      
+
       if (this.skeletonGroup) {
         this.skeletonGroup.visible = true;
       }
@@ -485,7 +485,7 @@ export class Engine3D {
           this.skeletonGroup.add(this.heartGroup);
         }
       }
-      
+
       // Camera target: chest area of skeleton (y=1.2)
       if (this.controls) {
         this.controls.target.set(0, 1.2, 0);
@@ -496,7 +496,7 @@ export class Engine3D {
       if (this.skeletonGroup) {
         this.skeletonGroup.visible = false;
       }
-      
+
       const isXR = this.renderer.xr.isPresenting;
       if (this.heartGroup) {
         this.heartGroup.visible = true; // Enforce heart visibility
@@ -511,7 +511,7 @@ export class Engine3D {
           }
         }
       }
-      
+
       // Camera target: center of focused heart
       if (this.controls && !isXR) {
         if (this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr') {
@@ -523,7 +523,7 @@ export class Engine3D {
         }
       }
     }
-    
+
     if (this.controls) this.controls.update();
   }
 
@@ -546,17 +546,17 @@ export class Engine3D {
       const label = document.createElement('div');
       label.className = 'heart-label-tag';
       label.id = `label-tag-${key}`;
-      
+
       // Get formatted label name
       const name = HeartData[key] ? HeartData[key].name : key;
-      
+
       // Display small dot icon depending on blood oxygenation
       let dotColor = 'var(--color-primary)';
       if (key === 'aorta' || key === 'left_ventricle' || key === 'left_atrium') dotColor = 'var(--color-ox)';
       if (key === 'pulmonary_artery' || key === 'right_ventricle' || key === 'right_atrium' || key === 'vena_cava') dotColor = 'var(--color-deox)';
-      
+
       label.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background-color:${dotColor};box-shadow:0 0 4px ${dotColor}"></span>${name}`;
-      
+
       // Save reference and add to HUD
       this.labelElements[key] = label;
       hudContainer.appendChild(label);
@@ -569,10 +569,10 @@ export class Engine3D {
 
     // Mouse Move (Hover checking)
     this.renderer.domElement.addEventListener('mousemove', (e) => this.onMouseMove(e));
-    
+
     // Click / Touch select
     this.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
-    
+
     // Mobile Touch interaction helpers (raycasting support)
     this.renderer.domElement.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
@@ -609,15 +609,15 @@ export class Engine3D {
         }
 
         const nameId = mesh.userData.nameId || mesh.name;
-        
+
         if (this.hoveredMesh !== mesh) {
           // Remove previous hover color
           if (this.hoveredMesh && this.hoveredMesh !== this.selectedMesh) {
             highlightMaterial(this.materials[this.hoveredMesh.userData.nameId], false);
           }
-          
+
           this.hoveredMesh = mesh;
-          
+
           // Apply hover highlight
           if (this.hoveredMesh !== this.selectedMesh && this.materials[nameId]) {
             highlightMaterial(this.materials[nameId], true);
@@ -646,13 +646,13 @@ export class Engine3D {
         while (mesh.parent && mesh.parent !== this.heartGroup && mesh.parent.name !== 'heart_model') {
           mesh = mesh.parent;
         }
-        
+
         // Auto-focus on heart when clicked inside skeleton
         if (this.visualizerMode === 'skeleton') {
           this.setVisualizerMode('focused');
           return;
         }
-        
+
         const nameId = mesh.userData.nameId || mesh.name;
         if (HeartData[nameId]) {
           // Toggle selection: if already selected, clear it
@@ -687,7 +687,7 @@ export class Engine3D {
     if (targetMesh) {
       this.selectedMesh = targetMesh;
       highlightMaterial(this.materials[nameId], true);
-      
+
       // Hide all other parts, show only the selected part
       this.heartGroup.traverse(node => {
         if (node.isMesh) {
@@ -713,7 +713,7 @@ export class Engine3D {
       if (this.particles) {
         this.particles.visible = false;
       }
-      
+
       // Update UI callback
       if (this.onSelectionChanged) {
         this.onSelectionChanged(nameId);
@@ -750,7 +750,7 @@ export class Engine3D {
   resetScene() {
     this.controls.reset();
     this.clearSelection();
-    
+
     // Reset rotations/scales
     if (this.heartGroup) {
       this.heartGroup.rotation.set(0, 0, 0);
@@ -761,7 +761,7 @@ export class Engine3D {
         }
       });
     }
-    
+
     // Restore skeleton landing view if on desktop, otherwise keep focused view
     if (this.appMode === 'desktop') {
       this.setVisualizerMode('skeleton');
@@ -839,7 +839,7 @@ export class Engine3D {
       // Map local heart space to world space coordinates
       tempV.copy(anchor);
       this.heartGroup.localToWorld(tempV);
-      
+
       // Project to 2D normalized screen space [-1, 1]
       tempV.project(this.camera);
 
@@ -873,12 +873,12 @@ export class Engine3D {
     if (phase > 0.15 && phase < 0.28) {
       const t = (phase - 0.15) / 0.13;
       scale = Math.sin(t * Math.PI) * 0.14; // rapid ventricular squeeze
-    } 
+    }
     // Atrial systole (P wave) contract around phase = 0.0
     else if (phase > 0.85 || phase < 0.08) {
       const t = (phase > 0.85 ? phase - 0.85 : phase + 0.15) / 0.23;
       scale = Math.sin(t * Math.PI) * 0.05; // smaller atrial pulse
-    } 
+    }
     // Diastolic relaxation (T wave) swells around phase = 0.45
     else if (phase > 0.38 && phase < 0.65) {
       const t = (phase - 0.38) / 0.27;
@@ -902,7 +902,7 @@ export class Engine3D {
       const t = elapsedTime;
       this.leftSimHand.position.y = 0.45 + Math.sin(t * 1.5) * 0.05;
       this.leftSimHand.position.x = -0.6 + Math.cos(t * 0.8) * 0.03;
-      
+
       this.rightSimHand.position.y = 0.45 + Math.cos(t * 1.7) * 0.05;
       this.rightSimHand.position.x = 0.6 + Math.sin(t * 0.9) * 0.03;
 
@@ -933,13 +933,13 @@ export class Engine3D {
     // 3. Heartbeat Animation Squeeze
     if (this.heartGroup && this.isBeating) {
       const beatScaleVal = this.getHeartbeatScale(elapsedTime, this.bpm);
-      
+
       this.heartGroup.children.forEach(node => {
         // Only scale main anatomical structures, skip branches/interior details directly
         if (node.userData && node.userData.originalScale) {
           const original = node.userData.originalScale;
           let factor = 1.0;
-          
+
           if (node.name === 'left_ventricle' || node.name === 'right_ventricle') {
             factor = 1.0 - beatScaleVal; // squeeze during ventricular contraction
           } else if (node.name === 'left_atrium' || node.name === 'right_atrium') {
@@ -950,7 +950,7 @@ export class Engine3D {
             // Vessels expand slightly due to blood surge during vent contraction
             factor = 1.0 + beatScaleVal * 0.2;
           }
-          
+
           node.scale.set(
             original.x * factor,
             original.y * factor,

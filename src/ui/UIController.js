@@ -8,7 +8,7 @@ export class UIController {
     this.arManager = arManager;
     this.vrManager = vrManager;
     this.mrManager = mrManager;
-    
+
     this.activeMobileTab = 'viewer';
   }
 
@@ -118,9 +118,9 @@ export class UIController {
         const rotSlider = document.getElementById('slider-rotation-speed');
         const rotVal = document.getElementById('rotation-speed-val');
         if (rotSlider) {
-          rotSlider.value = 0.05;
-          this.engine.setRotationSpeed(0.05);
-          if (rotVal) rotVal.textContent = "5%";
+          rotSlider.value = 0.0;
+          this.engine.setRotationSpeed(0.0);
+          if (rotVal) rotVal.textContent = "0%";
         }
 
         const bpmSlider = document.getElementById('slider-pulse-rate');
@@ -130,7 +130,7 @@ export class UIController {
           this.engine.setPulseRate(72);
           if (bpmVal) bpmVal.textContent = "72 BPM";
         }
-        
+
         const sectionSwitch = document.getElementById('switch-section');
         const sliceSlider = document.getElementById('slider-slice-pos');
         if (sectionSwitch && sliceSlider) {
@@ -153,7 +153,7 @@ export class UIController {
           const func = document.getElementById('info-function').textContent;
           const clinical = document.getElementById('info-clinical').textContent;
           const textToSpeak = `${title}. Function: ${func}. Clinical Importance: ${clinical}`;
-          
+
           readBtn.classList.add('active');
           this.voiceEngine.speak(textToSpeak, () => {
             readBtn.classList.remove('active');
@@ -207,7 +207,7 @@ export class UIController {
     // Connect voice commands back to the 3D scene inputs
     this.voiceEngine.onCommand = (cmd) => {
       console.log("UIController: Executing voice command: ", cmd);
-      
+
       switch (cmd.type) {
         case 'RESET':
           this.engine.resetScene();
@@ -255,7 +255,7 @@ export class UIController {
     const navViewer = document.getElementById('nav-viewer');
     const navInfo = document.getElementById('nav-info');
     const navControls = document.getElementById('nav-controls');
-    
+
     const body = document.body;
 
     const clearMobileClasses = () => {
@@ -279,7 +279,7 @@ export class UIController {
         navInfo.classList.add('active');
         body.classList.add('mobile-show-right');
         this.activeMobileTab = 'info';
-        
+
         // ensure sidebar is visible
         document.getElementById('panel-right').classList.remove('collapsed');
       });
@@ -291,7 +291,7 @@ export class UIController {
         navControls.classList.add('active');
         body.classList.add('mobile-show-left');
         this.activeMobileTab = 'controls';
-        
+
         // ensure sidebar is visible
         document.getElementById('panel-left').classList.remove('collapsed');
       });
@@ -312,7 +312,7 @@ export class UIController {
     this.engine.onSelectionChanged = (nameId) => {
       // If voice speaking is active, cancel it immediately when changing selection
       this.voiceEngine.stopSpeaking();
-      
+
       const readBtn = document.getElementById('btn-read-info');
       if (readBtn) readBtn.classList.remove('active');
 
@@ -364,6 +364,41 @@ export class UIController {
     };
   }
 
+  // Helper to coordinate: Exit Current Mode -> Dispose Session -> Clear Prev Environment -> Reset UI -> Load Selected -> Create New Environment
+  async transitionToMode(targetMode, startSessionFn) {
+    console.log(`UIController: Transitioning to mode: ${targetMode}`);
+
+    // 1. Exit current session if presenting (Exit Current Mode & Dispose Previous XR Session)
+    if (this.engine.renderer.xr.isPresenting) {
+      const session = this.engine.renderer.xr.getSession();
+      if (session) {
+        // Wait for session to end completely before proceeding
+        await new Promise((resolve) => {
+          const onSessionEnd = () => {
+            this.engine.renderer.xr.removeEventListener('sessionend', onSessionEnd);
+            // Wait slightly for browser/Three.js state cleanup
+            setTimeout(resolve, 150);
+          };
+          this.engine.renderer.xr.addEventListener('sessionend', onSessionEnd);
+          session.end();
+        });
+      }
+    }
+
+    // 2. Load the target mode (which triggers setAppMode to Clear Previous and Load Selected)
+    this.engine.setAppMode(targetMode);
+
+    // 3. Request the new session or run simulated environment (Create New Environment)
+    if (startSessionFn && navigator.xr) {
+      try {
+        await startSessionFn();
+      } catch (err) {
+        console.warn(`WebXR session request failed for ${targetMode}, falling back to simulation:`, err);
+        this.engine.setAppMode(targetMode);
+      }
+    }
+  }
+
   // Wires WebXR start buttons
   bindXRSessionTriggers() {
     const btnAr = document.getElementById('btn-ar');
@@ -380,86 +415,49 @@ export class UIController {
     };
 
     if (btnAr) {
-      btnAr.addEventListener('click', async () => {
+      btnAr.addEventListener('click', () => {
         updateActiveButton(btnAr);
-        if (!navigator.xr) {
-          this.engine.setAppMode('ar');
-          return;
-        }
-        try {
-          await this.arManager.startSession();
-        } catch (err) {
-          console.warn("WebXR AR session failed, falling back to desktop AR simulation:", err);
-          this.engine.setAppMode('ar');
-        }
+        this.transitionToMode('ar', () => this.arManager.startSession());
       });
     }
 
     if (btnVr) {
-      btnVr.addEventListener('click', async () => {
+      btnVr.addEventListener('click', () => {
         updateActiveButton(btnVr);
-        if (!navigator.xr) {
-          this.engine.setAppMode('vr');
-          return;
-        }
-        try {
-          await this.vrManager.startSession();
-        } catch (err) {
-          console.warn("WebXR VR session failed, falling back to desktop VR simulation:", err);
-          this.engine.setAppMode('vr');
-        }
+        this.transitionToMode('vr', () => this.vrManager.startSession());
       });
     }
 
     if (btnMr) {
-      btnMr.addEventListener('click', async () => {
+      btnMr.addEventListener('click', () => {
         updateActiveButton(btnMr);
-        this.engine.setAppMode('mr');
-        if (!navigator.xr) {
-          return;
-        }
-        try {
-          await this.mrManager.startMRSession();
-        } catch (err) {
-          console.warn("WebXR MR session failed, falling back to desktop MR simulation:", err);
-          this.engine.setAppMode('mr');
-        }
+        this.transitionToMode('mr', () => this.mrManager.startMRSession());
       });
     }
 
     if (btnDesktop) {
       btnDesktop.addEventListener('click', () => {
         updateActiveButton(btnDesktop);
-        // Exits active XR session
-        if (this.engine.renderer.xr.isPresenting) {
-          const session = this.engine.renderer.xr.getSession();
-          if (session) session.end();
-        }
-        this.engine.setAppMode('desktop');
+        this.transitionToMode('desktop', null);
       });
     }
 
     if (btnXr) {
-      btnXr.addEventListener('click', async () => {
+      btnXr.addEventListener('click', () => {
         updateActiveButton(btnXr);
-        if (navigator.xr) {
-          try {
-            const isVR = await navigator.xr.isSessionSupported('immersive-vr');
-            if (isVR) {
-              await this.vrManager.startSession();
-              return;
-            }
-            const isAR = await navigator.xr.isSessionSupported('immersive-ar');
-            if (isAR) {
-              await this.arManager.startSession();
-              return;
-            }
-          } catch (e) {
-            console.warn("Auto XR checking failed:", e);
+        this.transitionToMode('xr', async () => {
+          const isVR = await navigator.xr.isSessionSupported('immersive-vr');
+          if (isVR) {
+            await this.vrManager.startSession();
+            return;
           }
-        }
-        // Fallback simulated Auto XR
-        this.engine.setAppMode('xr');
+          const isAR = await navigator.xr.isSessionSupported('immersive-ar');
+          if (isAR) {
+            await this.arManager.startSession();
+            return;
+          }
+          throw new Error("No WebXR session support");
+        });
       });
     }
   }
