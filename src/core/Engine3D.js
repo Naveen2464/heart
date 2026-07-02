@@ -499,27 +499,29 @@ export class Engine3D {
 
       const isXR = this.renderer.xr.isPresenting;
       if (this.heartGroup) {
-        this.heartGroup.visible = true; // Enforce heart visibility
-        this.scene.add(this.heartGroup); // ALWAYS add back to scene root so it detaches from invisible skeleton
+        this.heartGroup.visible = true;
+        this.scene.add(this.heartGroup); // detach from skeleton group → back to scene root
         if (!isXR) {
           if (this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr') {
-            this.heartGroup.scale.set(0.6, 0.6, 0.6);
-            this.heartGroup.position.set(0, 0.6, 0);
+            // XR modes: smaller heart floating at standing eye level
+            this.heartGroup.scale.set(0.55, 0.55, 0.55);
+            this.heartGroup.position.set(0, 0, 0);
           } else {
-            this.heartGroup.scale.set(1.0, 1.0, 1.0);
-            this.heartGroup.position.set(0, 0.5, 0); // centered in viewport
+            // Desktop: scale to fill viewport, offset to compensate geometry mass center (~y+0.25)
+            this.heartGroup.scale.set(1.1, 1.1, 1.1);
+            this.heartGroup.position.set(0, -0.25, 0);
           }
         }
       }
 
-      // Camera target: center of focused heart
+      // Camera: look straight at origin so heart is dead-center
       if (this.controls && !isXR) {
         if (this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr') {
-          this.controls.target.set(0, 0.6, 0);
-          this.camera.position.set(0, 0.6, 3.8);
+          this.controls.target.set(0, 0, 0);
+          this.camera.position.set(0, 0, 3.5);
         } else {
-          this.controls.target.set(0, 0.5, 0);
-          this.camera.position.set(0, 0.5, 5.0);
+          this.controls.target.set(0, -0.25, 0);
+          this.camera.position.set(0, -0.25, 4.5);
         }
       }
     }

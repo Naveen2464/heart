@@ -203,8 +203,8 @@ export function createProceduralHeart(materials) {
   vcGroup.castShadow = true;
   heartGroup.add(vcGroup);
 
-  // Align heart model to be centered around origin
-  heartGroup.position.set(0, 0.2, 0);
+  // No pre-baked offset — Engine3D setVisualizerMode controls all positioning
+  heartGroup.position.set(0, 0, 0);
   
   return heartGroup;
 }
