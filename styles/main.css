@@ -938,22 +938,44 @@ input[type="range"]:disabled::-webkit-slider-thumb {
 .heart-label-tag {
   position: absolute;
   color: var(--color-text-main);
-  background: rgba(5, 10, 18, 0.75);
+  background: rgba(5, 10, 18, 0.82);
   border: 1px solid var(--border-neon);
   box-shadow: var(--shadow-neon);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  padding: 4px 10px;
-  border-radius: 4px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 5px 12px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
-  pointer-events: none;
+  pointer-events: auto; /* CLICKABLE */
+  cursor: pointer;
   transform: translate(-50%, -100%);
   display: flex;
   align-items: center;
   gap: 5px;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.heart-label-tag:hover {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.5), 0 0 4px rgba(0, 240, 255, 0.3);
+  transform: translate(-50%, -100%) scale(1.08);
+  color: var(--color-primary);
+}
+
+.heart-label-tag:active {
+  transform: translate(-50%, -100%) scale(0.96);
+  background: rgba(0, 240, 255, 0.25);
+}
+
+.heart-label-tag.selected {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.6);
+  color: var(--color-primary);
 }
 
 /* Floating AR instructions helper */

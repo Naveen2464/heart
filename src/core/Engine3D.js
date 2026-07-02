@@ -555,7 +555,21 @@ export class Engine3D {
       if (key === 'aorta' || key === 'left_ventricle' || key === 'left_atrium') dotColor = 'var(--color-ox)';
       if (key === 'pulmonary_artery' || key === 'right_ventricle' || key === 'right_atrium' || key === 'vena_cava') dotColor = 'var(--color-deox)';
 
-      label.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background-color:${dotColor};box-shadow:0 0 4px ${dotColor}"></span>${name}`;
+      label.innerHTML = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background-color:${dotColor};box-shadow:0 0 6px ${dotColor};margin-right:5px;flex-shrink:0"></span>${name}`;
+
+      // Make label CLICKABLE — selecting that anatomy part directly
+      label.style.cursor = 'pointer';
+      label.title = `Click to view ${name} details`;
+      label.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Toggle: if already selected, clear; otherwise select
+        if (this.selectedMesh && this.selectedMesh.userData && this.selectedMesh.userData.nameId === key) {
+          this.clearSelection();
+        } else {
+          this.setVisualizerMode('focused');
+          this.selectAnatomy(key);
+        }
+      });
 
       // Save reference and add to HUD
       this.labelElements[key] = label;

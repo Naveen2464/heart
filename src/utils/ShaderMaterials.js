@@ -3,115 +3,126 @@
 // 1. Create realistic transparent/glass PBR materials for the heart structures
 export function createHeartMaterials(clippingPlane) {
   const materials = {
+    // Left Ventricle — deepest crimson, thickest muscle wall
     left_ventricle: new THREE.MeshPhysicalMaterial({
-      color: 0xe03a3a, // Crimson Red
-      metalness: 0.15,
-      roughness: 0.25,
-      clearcoat: 0.8,
-      clearcoatRoughness: 0.1,
+      color: 0xb01020,
+      metalness: 0.05,
+      roughness: 0.55,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.12,
       transparent: true,
-      opacity: 0.65,
-      emissive: new THREE.Color(0x3a0808), // dark emissive glow
-      emissiveIntensity: 0.2,
+      opacity: 0.88,
+      emissive: new THREE.Color(0x5a0010),
+      emissiveIntensity: 0.35,
       side: THREE.DoubleSide,
       clippingPlanes: [clippingPlane],
       clipIntersection: false
     }),
-    
+
+    // Right Ventricle — slightly lighter, thinner muscle wall
     right_ventricle: new THREE.MeshPhysicalMaterial({
-      color: 0xcc2929, // slightly different red shade
-      metalness: 0.15,
-      roughness: 0.25,
-      clearcoat: 0.8,
-      clearcoatRoughness: 0.1,
+      color: 0x991525,
+      metalness: 0.05,
+      roughness: 0.55,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.14,
       transparent: true,
-      opacity: 0.65,
-      emissive: new THREE.Color(0x3a0808),
-      emissiveIntensity: 0.2,
+      opacity: 0.85,
+      emissive: new THREE.Color(0x48000e),
+      emissiveIntensity: 0.3,
       side: THREE.DoubleSide,
       clippingPlanes: [clippingPlane],
       clipIntersection: false
     }),
-    
+
+    // Left Atrium — oxygenated, brighter red-pink
     left_atrium: new THREE.MeshPhysicalMaterial({
-      color: 0xf24e4e, // lighter red-pink
-      metalness: 0.15,
-      roughness: 0.3,
-      clearcoat: 0.6,
+      color: 0xc93040,
+      metalness: 0.04,
+      roughness: 0.50,
+      clearcoat: 0.75,
+      clearcoatRoughness: 0.15,
       transparent: true,
-      opacity: 0.6,
-      emissive: new THREE.Color(0x3a0808),
-      emissiveIntensity: 0.1,
+      opacity: 0.82,
+      emissive: new THREE.Color(0x60050f),
+      emissiveIntensity: 0.28,
       side: THREE.DoubleSide,
       clippingPlanes: [clippingPlane],
       clipIntersection: false
     }),
-    
+
+    // Right Atrium — slightly darker, deoxygenated blood arrives here
     right_atrium: new THREE.MeshPhysicalMaterial({
-      color: 0xdc3535,
-      metalness: 0.15,
-      roughness: 0.3,
-      clearcoat: 0.6,
+      color: 0xb02035,
+      metalness: 0.04,
+      roughness: 0.52,
+      clearcoat: 0.72,
+      clearcoatRoughness: 0.16,
       transparent: true,
-      opacity: 0.6,
-      emissive: new THREE.Color(0x3a0808),
-      emissiveIntensity: 0.1,
+      opacity: 0.82,
+      emissive: new THREE.Color(0x4a0010),
+      emissiveIntensity: 0.25,
       side: THREE.DoubleSide,
       clippingPlanes: [clippingPlane],
       clipIntersection: false
     }),
 
+    // Aorta — bright oxygenated arterial red, shiny smooth vessel wall
     aorta: new THREE.MeshPhysicalMaterial({
-      color: 0xff3b30, // Bright Red
-      metalness: 0.25,
-      roughness: 0.15,
+      color: 0xff2535,
+      metalness: 0.12,
+      roughness: 0.20,
       clearcoat: 1.0,
       clearcoatRoughness: 0.05,
       transparent: true,
-      opacity: 0.75,
-      emissive: new THREE.Color(0x5a0a0a),
-      emissiveIntensity: 0.3,
+      opacity: 0.90,
+      emissive: new THREE.Color(0x7a0010),
+      emissiveIntensity: 0.40,
       side: THREE.DoubleSide,
       clippingPlanes: [clippingPlane],
       clipIntersection: false
     }),
 
+    // Pulmonary Artery — deep blue/indigo (deoxygenated, going to lungs)
     pulmonary_artery: new THREE.MeshPhysicalMaterial({
-      color: 0x0066cc, // Royal Blue (carrying deoxygenated blood)
-      metalness: 0.25,
-      roughness: 0.15,
+      color: 0x1a4aaa,
+      metalness: 0.12,
+      roughness: 0.20,
       clearcoat: 1.0,
       clearcoatRoughness: 0.05,
       transparent: true,
-      opacity: 0.75,
-      emissive: new THREE.Color(0x002255),
-      emissiveIntensity: 0.3,
+      opacity: 0.90,
+      emissive: new THREE.Color(0x050f50),
+      emissiveIntensity: 0.35,
       side: THREE.DoubleSide,
       clippingPlanes: [clippingPlane],
       clipIntersection: false
     }),
 
+    // Vena Cava — dark navy blue (deoxygenated blood returning from body)
     vena_cava: new THREE.MeshPhysicalMaterial({
-      color: 0x0052a3, // Dark Blue
-      metalness: 0.15,
-      roughness: 0.25,
-      clearcoat: 0.6,
+      color: 0x0d3080,
+      metalness: 0.08,
+      roughness: 0.30,
+      clearcoat: 0.75,
+      clearcoatRoughness: 0.10,
       transparent: true,
-      opacity: 0.65,
-      emissive: new THREE.Color(0x001533),
-      emissiveIntensity: 0.2,
+      opacity: 0.87,
+      emissive: new THREE.Color(0x020a2a),
+      emissiveIntensity: 0.25,
       side: THREE.DoubleSide,
       clippingPlanes: [clippingPlane],
       clipIntersection: false
     })
   };
 
-  // Add highlight properties to user data for selection
+  // Store original properties for highlight/restore
   Object.keys(materials).forEach(key => {
     materials[key].userData = {
       originalColor: materials[key].color.getHex(),
       originalOpacity: materials[key].opacity,
-      originalEmissive: materials[key].emissive.getHex()
+      originalEmissive: materials[key].emissive.getHex(),
+      originalEmissiveIntensity: materials[key].emissiveIntensity
     };
   });
 
@@ -138,7 +149,11 @@ export function highlightMaterial(material, isHighlighted) {
     const od = material.userData;
     if (material.color && od && od.originalColor !== undefined) material.color.setHex(od.originalColor);
     if (material.emissive && od && od.originalEmissive !== undefined) material.emissive.setHex(od.originalEmissive);
-    if (material.emissiveIntensity !== undefined) material.emissiveIntensity = 0.2;
+    if (material.emissiveIntensity !== undefined && od && od.originalEmissiveIntensity !== undefined) {
+      material.emissiveIntensity = od.originalEmissiveIntensity;
+    } else if (material.emissiveIntensity !== undefined) {
+      material.emissiveIntensity = 0.2;
+    }
     if (material.opacity !== undefined && od && od.originalOpacity !== undefined) material.opacity = od.originalOpacity;
     material.needsUpdate = true;
   }

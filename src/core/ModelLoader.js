@@ -5,7 +5,7 @@ import { createProceduralSkeleton } from '../utils/SkeletonGeometry.js';
 export class ModelLoader {
   constructor(manager) {
     this.loader = new THREE.GLTFLoader(manager);
-    this.modelPath = 'assets/models/realistic_human_heart.glb';
+    this.modelPath = 'assets/models/heart.glb'; // Procedural fallback: 7 separate anatomy parts
   }
 
   /**

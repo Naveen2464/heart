@@ -316,6 +316,9 @@ export class UIController {
       const readBtn = document.getElementById('btn-read-info');
       if (readBtn) readBtn.classList.remove('active');
 
+      // Remove 'selected' class from all anatomy labels
+      document.querySelectorAll('.heart-label-tag').forEach(el => el.classList.remove('selected'));
+
       if (!nameId) {
         // Clear card content
         if (placeholder) placeholder.classList.remove('hidden');
@@ -325,6 +328,10 @@ export class UIController {
 
       const data = HeartData[nameId];
       if (!data) return;
+
+      // Highlight the corresponding anatomy label tag
+      const labelEl = document.getElementById(`label-tag-${nameId}`);
+      if (labelEl) labelEl.classList.add('selected');
 
       // Populate Texts
       if (title) title.textContent = data.name;
