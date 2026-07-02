@@ -71,12 +71,14 @@ function setupXRSessionListeners() {
     
     if (mode === 'immersive-ar') {
       if (btnAr) btnAr.classList.add('active');
+      engine.appMode = 'ar';
       // AR: notify screen reader, collapse side panels
       accessibility.announceToScreenReader("Entered AR Mode. Scan your surroundings to place the heart.");
       document.getElementById('panel-left').classList.add('collapsed');
       document.getElementById('panel-right').classList.add('collapsed');
     } else if (mode === 'immersive-vr') {
       if (btnVr) btnVr.classList.add('active');
+      engine.appMode = 'vr';
       accessibility.announceToScreenReader("Entered VR Laboratory Mode. Use controller lasers to select structures.");
       document.getElementById('panel-left').classList.add('collapsed');
       document.getElementById('panel-right').classList.add('collapsed');
@@ -105,6 +107,8 @@ function setupXRSessionListeners() {
     // Stop active speech or voice overlays
     voiceEngine.stopSpeaking();
     voiceEngine.stopListening();
+    
+    engine.appMode = 'desktop';
     
     // Restore skeleton landing page view
     engine.setVisualizerMode('skeleton');

@@ -341,6 +341,9 @@ export class Engine3D {
   }
 
   setVisualizerMode(mode) {
+    if (this.appMode !== 'desktop') {
+      mode = 'focused';
+    }
     this.visualizerMode = mode; // 'skeleton' or 'focused'
     
     // Sync the UI checkbox state
@@ -378,16 +381,30 @@ export class Engine3D {
       if (this.skeletonGroup) {
         this.skeletonGroup.visible = false;
       }
+      
+      const isXR = this.renderer.xr.isPresenting;
       if (this.heartGroup) {
-        this.scene.add(this.heartGroup); // add back to scene root
-        this.heartGroup.scale.set(1.0, 1.0, 1.0);
-        this.heartGroup.position.set(0, 0.5, 0); // centered in viewport
+        this.scene.add(this.heartGroup); // ALWAYS add back to scene root so it detaches from invisible skeleton
+        if (!isXR) {
+          if (this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr') {
+            this.heartGroup.scale.set(0.6, 0.6, 0.6);
+            this.heartGroup.position.set(0, 0.6, 0);
+          } else {
+            this.heartGroup.scale.set(1.0, 1.0, 1.0);
+            this.heartGroup.position.set(0, 0.5, 0); // centered in viewport
+          }
+        }
       }
       
       // Camera target: center of focused heart
-      if (this.controls) {
-        this.controls.target.set(0, 0.5, 0);
-        this.camera.position.set(0, 0.5, 5.0);
+      if (this.controls && !isXR) {
+        if (this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr') {
+          this.controls.target.set(0, 0.6, 0);
+          this.camera.position.set(0, 0.6, 3.8);
+        } else {
+          this.controls.target.set(0, 0.5, 0);
+          this.camera.position.set(0, 0.5, 5.0);
+        }
       }
     }
     
@@ -522,8 +539,16 @@ export class Engine3D {
         
         const nameId = mesh.userData.nameId || mesh.name;
         if (HeartData[nameId]) {
-          this.selectAnatomy(nameId);
+          // Toggle selection: if already selected, clear it
+          if (this.selectedMesh && this.selectedMesh.userData.nameId === nameId) {
+            this.clearSelection();
+          } else {
+            this.selectAnatomy(nameId);
+          }
         }
+      } else {
+        // Clicked empty space: clear selection
+        this.clearSelection();
       }
     }
   }
@@ -547,6 +572,32 @@ export class Engine3D {
       this.selectedMesh = targetMesh;
       highlightMaterial(this.materials[nameId], true);
       
+      // Hide all other parts, show only the selected part
+      this.heartGroup.traverse(node => {
+        if (node.isMesh) {
+          if (node.userData && node.userData.nameId) {
+            node.visible = (node.userData.nameId === nameId);
+          } else {
+            // Check parent hierarchy for match (for submeshes of groups like aorta branches/vena cava)
+            let parentNode = node.parent;
+            let match = false;
+            while (parentNode && parentNode !== this.heartGroup) {
+              if (parentNode.userData && parentNode.userData.nameId === nameId) {
+                match = true;
+                break;
+              }
+              parentNode = parentNode.parent;
+            }
+            node.visible = match;
+          }
+        }
+      });
+
+      // Temporarily hide particles while showing only one selected part
+      if (this.particles) {
+        this.particles.visible = false;
+      }
+      
       // Update UI callback
       if (this.onSelectionChanged) {
         this.onSelectionChanged(nameId);
@@ -560,6 +611,21 @@ export class Engine3D {
       highlightMaterial(this.materials[this.selectedMesh.userData.nameId], false);
       this.selectedMesh = null;
     }
+
+    // Show all parts of the heart again
+    if (this.heartGroup) {
+      this.heartGroup.traverse(node => {
+        if (node.isMesh) {
+          node.visible = true;
+        }
+      });
+    }
+
+    // Restore active particles visibility
+    if (this.particles) {
+      this.particles.visible = this.isFlowing;
+    }
+
     if (this.onSelectionChanged) {
       this.onSelectionChanged(null);
     }
@@ -580,8 +646,12 @@ export class Engine3D {
       });
     }
     
-    // Restore skeleton landing view
-    this.setVisualizerMode('skeleton');
+    // Restore skeleton landing view if on desktop, otherwise keep focused view
+    if (this.appMode === 'desktop') {
+      this.setVisualizerMode('skeleton');
+    } else {
+      this.setVisualizerMode('focused');
+    }
   }
 
   // Config modifier setters

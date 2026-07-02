@@ -216,6 +216,7 @@ body {
 /* Top Navigation Bar */
 .hud-top-bar {
   margin: 15px;
+  margin-top: calc(15px + env(safe-area-inset-top, 0px));
   padding: 10px 20px;
   display: flex;
   justify-content: space-between;
@@ -350,8 +351,8 @@ body {
 /* Sidebars Base Layout */
 .hud-sidebar {
   position: absolute;
-  top: 90px;
-  bottom: 95px;
+  top: calc(90px + env(safe-area-inset-top, 0px));
+  bottom: calc(95px + env(safe-area-inset-bottom, 0px));
   /* space for bottom nav or margin */
   width: 320px;
   display: flex;
@@ -717,7 +718,7 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   display: none;
   /* hidden on desktop */
   position: absolute;
-  bottom: 15px;
+  bottom: calc(15px + env(safe-area-inset-bottom, 0px));
   left: 15px;
   right: 15px;
   height: 65px;
@@ -1105,6 +1106,7 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   /* Mobile views */
   .hud-top-bar {
     margin: 8px;
+    margin-top: calc(8px + env(safe-area-inset-top, 0px));
     padding: 10px;
     height: 55px;
   }
@@ -1129,8 +1131,8 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   /* Hide desktop sidebars and show bottom navigation */
   .hud-sidebar {
     position: absolute;
-    top: 75px;
-    bottom: 90px;
+    top: calc(75px + env(safe-area-inset-top, 0px));
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     width: calc(100% - 20px);
     margin: 0 10px;
     border-radius: 12px;

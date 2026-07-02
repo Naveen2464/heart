@@ -1,4 +1,6 @@
 // WebXR AR Session Manager for MediXR
+import { HeartData } from '../utils/HeartData.js';
+
 export class ARManager {
   constructor(engine) {
     this.engine = engine;
@@ -9,6 +11,8 @@ export class ARManager {
     // Reticle (placement ring) for showing detected planes
     this.reticle = null;
     this.isPlaced = false;
+    this.controller = null;
+    this.onSelectCallback = null;
   }
 
   // Check if immersive AR is supported on the device
@@ -47,8 +51,11 @@ export class ARManager {
       // Configure scene adjustments for AR (hide background, shift scale)
       this.engine.scene.background = null;
       if (this.engine.heartGroup) {
-        this.engine.heartGroup.visible = false; // hide until placed
-        this.engine.heartGroup.scale.set(0.4, 0.4, 0.4); // shrink for desktop space
+        // Place it 1.2 meters in front of the camera, slightly down, and make it visible immediately
+        this.engine.heartGroup.position.set(0, -0.2, -1.2);
+        this.engine.heartGroup.scale.set(0.4, 0.4, 0.4);
+        this.engine.heartGroup.rotation.set(0, 0, 0);
+        this.engine.heartGroup.visible = true;
       }
       
       // Setup reticle indicator
@@ -62,8 +69,17 @@ export class ARManager {
         this.hitTestSpace = refSpaceFloor;
       });
 
-      // Handle screen tap/select to place model
-      this.session.addEventListener('select', () => this.onPlaceHeart());
+      // Reset placement instructions helper UI
+      const instr = document.getElementById('ar-instructions');
+      if (instr) {
+        instr.style.display = '';
+      }
+
+      // Handle screen tap/select using Three.js WebXR controller
+      this.controller = this.engine.renderer.xr.getController(0);
+      this.onSelectCallback = () => this.onARSelect(this.controller);
+      this.controller.addEventListener('select', this.onSelectCallback);
+      this.engine.scene.add(this.controller);
       
       // Listen for session end
       this.session.addEventListener('end', () => this.endSession());
@@ -95,6 +111,60 @@ export class ARManager {
     this.engine.scene.add(this.reticle);
   }
 
+  onARSelect(controller) {
+    let hitHeart = false;
+    
+    const tempMatrix = new THREE.Matrix4();
+    tempMatrix.identity().extractRotation(controller.matrixWorld);
+    
+    this.engine.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+    this.engine.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+    
+    if (this.engine.heartGroup && this.engine.heartGroup.visible) {
+      const intersects = this.engine.raycaster.intersectObjects(this.engine.heartGroup.children, true);
+      if (intersects.length > 0) {
+        let mesh = intersects[0].object;
+        while (mesh.parent && mesh.parent !== this.engine.heartGroup && mesh.parent.name !== 'heart_model') {
+          mesh = mesh.parent;
+        }
+        
+        const nameId = mesh.userData.nameId || mesh.name;
+        if (HeartData[nameId]) {
+          // Toggle selection: if already selected, clear it
+          if (this.engine.selectedMesh && this.engine.selectedMesh.userData.nameId === nameId) {
+            this.engine.clearSelection();
+          } else {
+            this.engine.selectAnatomy(nameId);
+          }
+          hitHeart = true;
+          
+          // Once they start interacting with the heart, we can stop the placement phase
+          if (!this.isPlaced) {
+            this.isPlaced = true;
+            if (this.reticle) {
+              this.engine.scene.remove(this.reticle);
+              this.reticle = null;
+            }
+            const instr = document.getElementById('ar-instructions');
+            if (instr) {
+              instr.style.display = 'none';
+            }
+          }
+        }
+      }
+    }
+
+    // If we didn't hit the heart
+    if (!hitHeart) {
+      if (!this.isPlaced) {
+        this.onPlaceHeart();
+      } else {
+        // Tapped empty space after placement: clear selection
+        this.engine.clearSelection();
+      }
+    }
+  }
+
   // Triggers when plane is clicked to place the heart
   onPlaceHeart() {
     if (this.reticle && this.reticle.visible && !this.isPlaced) {
@@ -114,6 +184,12 @@ export class ARManager {
       // Remove reticle
       this.engine.scene.remove(this.reticle);
       this.reticle = null;
+
+      // Hide AR placement instructions helper
+      const instr = document.getElementById('ar-instructions');
+      if (instr) {
+        instr.style.display = 'none';
+      }
     }
   }
 
@@ -144,6 +220,17 @@ export class ARManager {
     if (this.reticle) {
       this.engine.scene.remove(this.reticle);
       this.reticle = null;
+    }
+
+    if (this.controller) {
+      this.controller.removeEventListener('select', this.onSelectCallback);
+      this.engine.scene.remove(this.controller);
+      this.controller = null;
+    }
+
+    const instr = document.getElementById('ar-instructions');
+    if (instr) {
+      instr.style.display = '';
     }
     
     // Reset background and heart transforms
