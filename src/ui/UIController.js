@@ -368,11 +368,12 @@ export class UIController {
   bindXRSessionTriggers() {
     const btnAr = document.getElementById('btn-ar');
     const btnVr = document.getElementById('btn-vr');
+    const btnMr = document.getElementById('btn-mr');
     const btnDesktop = document.getElementById('btn-desktop');
     const btnXr = document.getElementById('btn-xr');
 
     const updateActiveButton = (activeBtn) => {
-      [btnDesktop, btnAr, btnVr, btnXr].forEach(btn => {
+      [btnDesktop, btnAr, btnVr, btnMr, btnXr].forEach(btn => {
         if (btn) btn.classList.remove('active');
       });
       if (activeBtn) activeBtn.classList.add('active');
@@ -406,6 +407,22 @@ export class UIController {
         } catch (err) {
           console.warn("WebXR VR session failed, falling back to desktop VR simulation:", err);
           this.engine.setAppMode('vr');
+        }
+      });
+    }
+
+    if (btnMr) {
+      btnMr.addEventListener('click', async () => {
+        updateActiveButton(btnMr);
+        this.engine.setAppMode('mr');
+        if (!navigator.xr) {
+          return;
+        }
+        try {
+          await this.mrManager.startMRSession();
+        } catch (err) {
+          console.warn("WebXR MR session failed, falling back to desktop MR simulation:", err);
+          this.engine.setAppMode('mr');
         }
       });
     }

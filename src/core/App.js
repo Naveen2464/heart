@@ -56,6 +56,7 @@ function setupXRSessionListeners() {
   const btnDesktop = document.getElementById('btn-desktop');
   const btnAr = document.getElementById('btn-ar');
   const btnVr = document.getElementById('btn-vr');
+  const btnMr = document.getElementById('btn-mr');
 
   xr.addEventListener('sessionstart', () => {
     console.log("MediXR App: WebXR presentation session started.");
@@ -77,9 +78,14 @@ function setupXRSessionListeners() {
       document.getElementById('panel-left').classList.add('collapsed');
       document.getElementById('panel-right').classList.add('collapsed');
     } else if (mode === 'immersive-vr') {
-      if (btnVr) btnVr.classList.add('active');
-      engine.appMode = 'vr';
-      accessibility.announceToScreenReader("Entered VR Laboratory Mode. Use controller lasers to select structures.");
+      if (engine.appMode === 'mr') {
+        if (btnMr) btnMr.classList.add('active');
+        accessibility.announceToScreenReader("Entered Mixed Reality Mode. Interact directly using your hands.");
+      } else {
+        if (btnVr) btnVr.classList.add('active');
+        engine.appMode = 'vr';
+        accessibility.announceToScreenReader("Entered VR Laboratory Mode. Use controller lasers to select structures.");
+      }
       document.getElementById('panel-left').classList.add('collapsed');
       document.getElementById('panel-right').classList.add('collapsed');
     }
@@ -103,6 +109,7 @@ function setupXRSessionListeners() {
     if (btnDesktop) btnDesktop.classList.add('active');
     if (btnAr) btnAr.classList.remove('active');
     if (btnVr) btnVr.classList.remove('active');
+    if (btnMr) btnMr.classList.remove('active');
     
     // Stop active speech or voice overlays
     voiceEngine.stopSpeaking();
@@ -113,9 +120,10 @@ function setupXRSessionListeners() {
     // Restore skeleton landing page view
     engine.setVisualizerMode('skeleton');
 
-    // Call VR and AR managers teardowns to clean up floor grids, reticles, and platforms
+    // Call VR, AR, and MR managers teardowns to clean up floor grids, reticles, and platforms
     if (vrManager) vrManager.endSession();
     if (arManager) arManager.endSession();
+    if (mrManager) mrManager.endSession();
     
     // Expand panels back for desktop
     if (window.innerWidth >= 1024) {

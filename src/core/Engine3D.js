@@ -35,15 +35,20 @@ export class Engine3D {
     this.heartGroup = null;
     this.particles = null;
     this.visualizerMode = 'skeleton'; // 'skeleton' or 'focused'
-    this.appMode = 'desktop'; // 'desktop', 'ar', 'vr', 'xr'
+    this.appMode = 'desktop'; // 'desktop', 'ar', 'vr', 'mr', 'xr'
     this.arSimGroup = null;
     this.vrSimGroup = null;
+    this.mrSimGroup = null;
+    this.simulatedHands = null;
+    this.leftSimHand = null;
+    this.rightSimHand = null;
+    this.simHandJoints = [];
     this.arScanPlane = null;
     this.podiumMat = null;
     this.rimRing = null;
     
     // Clipping plane for cross sections
-    this.clippingPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
+    this.clippingPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 100.0);
     this.materials = null;
     
     // Label anchors for projection
@@ -223,17 +228,116 @@ export class Engine3D {
     this.rimRing.rotation.x = Math.PI / 2;
     this.rimRing.position.y = -0.29;
     this.vrSimGroup.add(this.rimRing);
+
+    // 3. MR Simulated Environment (Holographic pedestal, hand trackers)
+    this.mrSimGroup = new THREE.Group();
+    this.mrSimGroup.name = "mr_simulation";
+    this.mrSimGroup.visible = false;
+    this.scene.add(this.mrSimGroup);
+
+    // Holographic pedestal (semi-transparent glowing cylinder)
+    const mrPodiumGeo = new THREE.CylinderGeometry(0.35, 0.4, 0.8, 32);
+    const mrPodiumMat = new THREE.MeshPhysicalMaterial({
+      color: 0x0088ff,
+      transparent: true,
+      opacity: 0.35,
+      roughness: 0.1,
+      metalness: 0.9,
+      transmission: 0.6,
+      ior: 1.5,
+      emissive: 0x0088ff,
+      emissiveIntensity: 0.4,
+      side: THREE.DoubleSide
+    });
+    const mrPodium = new THREE.Mesh(mrPodiumGeo, mrPodiumMat);
+    mrPodium.position.y = -0.7;
+    this.mrSimGroup.add(mrPodium);
+
+    // Glowing podium rim ring (cyan/blue)
+    const mrRingGeo = new THREE.RingGeometry(0.33, 0.35, 32);
+    const mrRingMat = new THREE.MeshBasicMaterial({
+      color: 0x0088ff,
+      side: THREE.DoubleSide
+    });
+    const mrGlowRing = new THREE.Mesh(mrRingGeo, mrRingMat);
+    mrGlowRing.rotation.x = Math.PI / 2;
+    mrGlowRing.position.y = -0.29;
+    this.mrSimGroup.add(mrGlowRing);
+
+    // Simulated Hand Tracking: Left and Right hands represented by glowing spheres/lines
+    this.simulatedHands = new THREE.Group();
+    this.mrSimGroup.add(this.simulatedHands);
+
+    const jointGeo = new THREE.SphereGeometry(0.015, 8, 8);
+    const jointMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+
+    // Left Hand group
+    this.leftSimHand = new THREE.Group();
+    this.leftSimHand.position.set(-0.6, 0.5, 0.2);
+    this.simulatedHands.add(this.leftSimHand);
+
+    // Right Hand group
+    this.rightSimHand = new THREE.Group();
+    this.rightSimHand.position.set(0.6, 0.5, 0.2);
+    this.simulatedHands.add(this.rightSimHand);
+
+    // Create joint meshes for simulated hands
+    this.simHandJoints = [];
+    for (let h = 0; h < 2; h++) {
+      const handGroup = h === 0 ? this.leftSimHand : this.rightSimHand;
+      const joints = [];
+      
+      // Wrist joint (index 0)
+      const wrist = new THREE.Mesh(jointGeo, jointMat);
+      wrist.position.set(0, 0, 0);
+      handGroup.add(wrist);
+      joints.push(wrist);
+
+      // Simple skeleton of a hand: 5 fingers * 3 joints each = 15 joints
+      for (let f = 0; f < 5; f++) {
+        const angle = (f - 2) * 0.2;
+        for (let k = 1; k <= 3; k++) {
+          const joint = new THREE.Mesh(jointGeo, jointMat);
+          const dist = 0.05 + k * 0.04;
+          joint.position.set(
+            Math.sin(angle) * dist,
+            Math.cos(angle) * dist + (f === 0 ? -0.01 : 0), // adjust thumb position slightly
+            k * 0.01
+          );
+          handGroup.add(joint);
+          joints.push(joint);
+        }
+      }
+      this.simHandJoints.push(joints);
+
+      // Connect them with thin lines to show bones
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x0088ff, transparent: true, opacity: 0.6 });
+      for (let f = 0; f < 5; f++) {
+        const points = [];
+        points.push(new THREE.Vector3(0, 0, 0));
+        const baseIndex = 1 + f * 3;
+        for (let k = 0; k < 3; k++) {
+          const jointMesh = joints[baseIndex + k];
+          points.push(jointMesh.position);
+        }
+        
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+        const line = new THREE.Line(lineGeo, lineMat);
+        handGroup.add(line);
+      }
+    }
   }
 
   setAppMode(mode) {
-    this.appMode = mode; // 'desktop', 'ar', 'vr', 'xr'
+    this.appMode = mode; // 'desktop', 'ar', 'vr', 'mr', 'xr'
     
     // Reset all body classes
-    document.body.classList.remove('body-mode-ar', 'body-mode-vr', 'body-mode-xr');
+    document.body.classList.remove('body-mode-ar', 'body-mode-vr', 'body-mode-mr', 'body-mode-xr');
     
     // Hide all simulated environment groups by default
     if (this.arSimGroup) this.arSimGroup.visible = false;
     if (this.vrSimGroup) this.vrSimGroup.visible = false;
+    if (this.mrSimGroup) this.mrSimGroup.visible = false;
     
     // Handle status banner text & icon updates
     const banner = document.getElementById('mode-banner');
@@ -244,6 +348,7 @@ export class Engine3D {
     const panelRight = document.getElementById('panel-right');
     
     if (mode === 'desktop') {
+      if (this.scene) this.scene.background = new THREE.Color(0x050a12);
       if (banner) banner.classList.add('hidden');
       this.setVisualizerMode('skeleton');
       if (panelLeft) panelLeft.classList.remove('collapsed');
@@ -252,7 +357,7 @@ export class Engine3D {
       if (banner) banner.classList.remove('hidden');
       this.setVisualizerMode('focused');
       
-      // Scale down the heart in simulated AR/VR modes so it fits the viewport & podium perfectly (0.6x)
+      // Scale down the heart in simulated AR/VR/MR/XR modes so it fits the viewport & podium perfectly (0.6x)
       if (this.heartGroup) {
         this.heartGroup.scale.set(0.6, 0.6, 0.6);
         this.heartGroup.position.set(0, 0.6, 0);
@@ -268,11 +373,13 @@ export class Engine3D {
       
       if (mode === 'ar') {
         document.body.classList.add('body-mode-ar');
+        if (this.scene) this.scene.background = null;
         if (bannerText) bannerText.textContent = 'Simulated AR Mode';
         if (bannerIcon) bannerIcon.textContent = '🟢';
         if (this.arSimGroup) this.arSimGroup.visible = true;
       } else if (mode === 'vr') {
         document.body.classList.add('body-mode-vr');
+        if (this.scene) this.scene.background = new THREE.Color(0x050a12);
         if (bannerText) bannerText.textContent = 'Simulated VR Lab';
         if (bannerIcon) bannerIcon.textContent = '🟣';
         if (this.vrSimGroup) this.vrSimGroup.visible = true;
@@ -283,8 +390,15 @@ export class Engine3D {
           this.podiumMat.emissive.setHex(0x581c87);
           this.podiumMat.emissiveIntensity = 0.5;
         }
+      } else if (mode === 'mr') {
+        document.body.classList.add('body-mode-mr');
+        if (this.scene) this.scene.background = null;
+        if (bannerText) bannerText.textContent = 'Simulated MR Mode';
+        if (bannerIcon) bannerIcon.textContent = '🔵';
+        if (this.mrSimGroup) this.mrSimGroup.visible = true;
       } else if (mode === 'xr') {
         document.body.classList.add('body-mode-xr');
+        if (this.scene) this.scene.background = new THREE.Color(0x050a12);
         if (bannerText) bannerText.textContent = 'Simulated Auto XR';
         if (bannerIcon) bannerIcon.textContent = '💖';
         if (this.vrSimGroup) this.vrSimGroup.visible = true;
@@ -361,6 +475,7 @@ export class Engine3D {
         this.skeletonGroup.visible = true;
       }
       if (this.heartGroup) {
+        this.heartGroup.visible = true; // Enforce heart visibility
         // Scale heart small to fit inside the ribcage
         this.heartGroup.scale.set(0.08, 0.08, 0.08);
         // Position inside the chest cavity
@@ -384,6 +499,7 @@ export class Engine3D {
       
       const isXR = this.renderer.xr.isPresenting;
       if (this.heartGroup) {
+        this.heartGroup.visible = true; // Enforce heart visibility
         this.scene.add(this.heartGroup); // ALWAYS add back to scene root so it detaches from invisible skeleton
         if (!isXR) {
           if (this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr') {
@@ -779,6 +895,26 @@ export class Engine3D {
     // Update simulated AR scanning plane height cycle
     if (this.arSimGroup && this.arSimGroup.visible && this.arScanPlane) {
       this.arScanPlane.position.y = 0.6 + Math.sin(elapsedTime * 2) * 0.4;
+    }
+
+    // Update simulated MR hands tracking movements
+    if (this.mrSimGroup && this.mrSimGroup.visible && this.simulatedHands) {
+      const t = elapsedTime;
+      this.leftSimHand.position.y = 0.45 + Math.sin(t * 1.5) * 0.05;
+      this.leftSimHand.position.x = -0.6 + Math.cos(t * 0.8) * 0.03;
+      
+      this.rightSimHand.position.y = 0.45 + Math.cos(t * 1.7) * 0.05;
+      this.rightSimHand.position.x = 0.6 + Math.sin(t * 0.9) * 0.03;
+
+      // Wiggle finger joints slightly
+      this.simHandJoints.forEach((joints, h) => {
+        joints.forEach((joint, j) => {
+          if (j > 0) {
+            const wiggle = Math.sin(t * 3.0 + j * 0.5) * 0.005;
+            joint.position.z += wiggle * 0.1;
+          }
+        });
+      });
     }
 
     // 1. Controls
