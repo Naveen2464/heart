@@ -118,19 +118,29 @@ export function createHeartMaterials(clippingPlane) {
   return materials;
 }
 
-// Helper to highlight a material
+// Helper to highlight a material — works for both procedural PBR and realistic GLB materials
 export function highlightMaterial(material, isHighlighted) {
   if (!material) return;
+  // Handle arrays (multi-material meshes from GLBs)
+  if (Array.isArray(material)) {
+    material.forEach(m => highlightMaterial(m, isHighlighted));
+    return;
+  }
   if (isHighlighted) {
-    material.color.setHex(0x00f0ff); // Highlight to neon cyan
-    material.emissive = new THREE.Color(0x00f0ff);
-    material.emissiveIntensity = 0.6;
-    material.opacity = 0.9;
+    if (material.color) material.color.setHex(0x00f0ff); // neon cyan tint
+    if (material.emissive) {
+      material.emissive.setHex(0x00f0ff);
+    }
+    if (material.emissiveIntensity !== undefined) material.emissiveIntensity = 0.6;
+    if (material.opacity !== undefined) material.opacity = 0.9;
+    material.needsUpdate = true;
   } else {
-    material.color.setHex(material.userData.originalColor);
-    material.emissive = new THREE.Color(material.userData.originalEmissive);
-    material.emissiveIntensity = 0.2;
-    material.opacity = material.userData.originalOpacity;
+    const od = material.userData;
+    if (material.color && od && od.originalColor !== undefined) material.color.setHex(od.originalColor);
+    if (material.emissive && od && od.originalEmissive !== undefined) material.emissive.setHex(od.originalEmissive);
+    if (material.emissiveIntensity !== undefined) material.emissiveIntensity = 0.2;
+    if (material.opacity !== undefined && od && od.originalOpacity !== undefined) material.opacity = od.originalOpacity;
+    material.needsUpdate = true;
   }
 }
 

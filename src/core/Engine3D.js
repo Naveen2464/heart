@@ -576,8 +576,19 @@ export class Engine3D {
     // Mobile Touch interaction helpers (raycasting support)
     this.renderer.domElement.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
-        this.mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
-        this.mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        this.mouse.x = ((e.touches[0].clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((e.touches[0].clientY - rect.top) / rect.height) * 2 + 1;
+      }
+    }, { passive: true });
+
+    // Mobile tap triggers selection (touchend = completed tap without drag)
+    this.renderer.domElement.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        this.mouse.x = ((e.changedTouches[0].clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((e.changedTouches[0].clientY - rect.top) / rect.height) * 2 + 1;
+        this.onMouseClick(e);
       }
     }, { passive: true });
   }
@@ -590,11 +601,20 @@ export class Engine3D {
     this.renderer.setSize(width, height);
   }
 
-  highlightAnatomy(mesh, isHighlighted) {
-    if (!mesh) return;
-    const nameId = mesh.userData.nameId;
-    const mat = this.materials[nameId] || mesh.material;
-    highlightMaterial(mat, isHighlighted);
+  highlightAnatomy(node, isHighlighted) {
+    if (!node) return;
+    // Apply highlight recursively to all meshes inside the node (handles group nodes)
+    if (node.isMesh) {
+      const mat = node.material;
+      highlightMaterial(mat, isHighlighted);
+    }
+    if (node.children && node.children.length > 0) {
+      node.traverse(child => {
+        if (child.isMesh) {
+          highlightMaterial(child.material, isHighlighted);
+        }
+      });
+    }
   }
 
   onMouseMove(event) {
@@ -654,6 +674,14 @@ export class Engine3D {
 
   onMouseClick(event) {
     if (this.heartGroup) {
+      // Always recalculate normalised mouse from the actual click/tap position
+      // so raycasting works even without a prior mousemove event
+      if (event && event.clientX !== undefined) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      }
+
       this.raycaster.setFromCamera(this.mouse, this.camera);
       const intersects = this.raycaster.intersectObjects(this.heartGroup.children, true);
 
