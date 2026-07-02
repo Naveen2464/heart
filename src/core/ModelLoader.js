@@ -5,7 +5,7 @@ import { createProceduralSkeleton } from '../utils/SkeletonGeometry.js';
 export class ModelLoader {
   constructor(manager) {
     this.loader = new THREE.GLTFLoader(manager);
-    this.modelPath = 'assets/models/heart.glb';
+    this.modelPath = 'assets/models/realistic_human_heart.glb';
   }
 
   /**
@@ -140,31 +140,72 @@ export class ModelLoader {
               node.castShadow = true;
               node.receiveShadow = true;
               
-              // Normalize names: map node name to closest anatomical ID
-              const normalizedName = this.normalizeMeshName(node.name);
-              if (normalizedName && materials[normalizedName]) {
-                node.material = materials[normalizedName];
-                node.name = normalizedName;
+              // If it's the realistic human heart model, preserve the original realistic material/textures!
+              const lowerName = node.name.toLowerCase();
+              if (lowerName.includes('hart') || lowerName.includes('heart') || lowerName.includes('group_heart_tex')) {
+                // Apply clipping plane to the original realistic material
+                if (node.material) {
+                  node.material.clippingPlanes = [materials.left_ventricle.clippingPlanes[0]];
+                  node.material.clipIntersection = false;
+                  
+                  // Setup highlight properties
+                  node.material.userData = {
+                    originalColor: node.material.color ? node.material.color.getHex() : 0xffffff,
+                    originalOpacity: node.material.opacity !== undefined ? node.material.opacity : 1.0,
+                    originalEmissive: node.material.emissive ? node.material.emissive.getHex() : 0x000000
+                  };
+                }
+                
+                node.name = 'heart';
                 node.userData = {
                   originalScale: node.scale.clone(),
                   originalPosition: node.position.clone(),
                   originalRotation: node.rotation.clone(),
-                  nameId: normalizedName
+                  nameId: 'heart'
                 };
               } else {
-                // If it doesn't match, give it a default red material
-                node.material = materials.left_ventricle.clone();
-                node.userData = {
-                  originalScale: node.scale.clone(),
-                  originalPosition: node.position.clone(),
-                  originalRotation: node.rotation.clone(),
-                  nameId: node.name.toLowerCase()
-                };
+                // Normalize names: map node name to closest anatomical ID
+                const normalizedName = this.normalizeMeshName(node.name);
+                if (normalizedName && materials[normalizedName]) {
+                  node.material = materials[normalizedName];
+                  node.name = normalizedName;
+                  node.userData = {
+                    originalScale: node.scale.clone(),
+                    originalPosition: node.position.clone(),
+                    originalRotation: node.rotation.clone(),
+                    nameId: normalizedName
+                  };
+                } else {
+                  // If it doesn't match, give it a default red material
+                  node.material = materials.left_ventricle.clone();
+                  node.userData = {
+                    originalScale: node.scale.clone(),
+                    originalPosition: node.position.clone(),
+                    originalRotation: node.rotation.clone(),
+                    nameId: node.name.toLowerCase()
+                  };
+                }
               }
             }
           });
           
-          resolve(loadedModel);
+          // Normalize scale of loaded model to a standard size (height = 3.0)
+          const heartBox = new THREE.Box3().setFromObject(loadedModel);
+          const heartSize = heartBox.getSize(new THREE.Vector3());
+          const targetHeight = 3.0;
+          const scaleFactor = targetHeight / (heartSize.y || 1);
+          loadedModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
+          
+          // Center the loaded model's geometry so it spins around its local center
+          loadedModel.updateMatrixWorld(true);
+          const heartCenter = heartBox.getCenter(new THREE.Vector3());
+          loadedModel.position.set(-heartCenter.x, -heartCenter.y + 0.2, -heartCenter.z);
+          
+          const wrapperGroup = new THREE.Group();
+          wrapperGroup.name = "heart_model";
+          wrapperGroup.add(loadedModel);
+          
+          resolve(wrapperGroup);
         },
         // Progress callback
         (xhr) => {

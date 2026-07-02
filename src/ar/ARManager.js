@@ -124,12 +124,18 @@ export class ARManager {
       const intersects = this.engine.raycaster.intersectObjects(this.engine.heartGroup.children, true);
       if (intersects.length > 0) {
         let mesh = intersects[0].object;
-        while (mesh.parent && mesh.parent !== this.engine.heartGroup && mesh.parent.name !== 'heart_model') {
-          mesh = mesh.parent;
+        let nameId = null;
+        let current = mesh;
+        while (current) {
+          if (current.userData && current.userData.nameId) {
+            nameId = current.userData.nameId;
+            break;
+          }
+          if (current === this.engine.heartGroup) break;
+          current = current.parent;
         }
         
-        const nameId = mesh.userData.nameId || mesh.name;
-        if (HeartData[nameId]) {
+        if (nameId && HeartData[nameId]) {
           // Toggle selection: if already selected, clear it
           if (this.engine.selectedMesh && this.engine.selectedMesh.userData.nameId === nameId) {
             this.engine.clearSelection();

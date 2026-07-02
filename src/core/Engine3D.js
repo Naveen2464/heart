@@ -590,6 +590,13 @@ export class Engine3D {
     this.renderer.setSize(width, height);
   }
 
+  highlightAnatomy(mesh, isHighlighted) {
+    if (!mesh) return;
+    const nameId = mesh.userData.nameId;
+    const mat = this.materials[nameId] || mesh.material;
+    highlightMaterial(mat, isHighlighted);
+  }
+
   onMouseMove(event) {
     // Get mouse coordinates normalized
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -602,32 +609,41 @@ export class Engine3D {
       const intersects = this.raycaster.intersectObjects(this.heartGroup.children, true);
 
       if (intersects.length > 0) {
-        // Find topmost named mesh node (handling groups)
+        // Find topmost named mesh node with a nameId (handling nested groups of GLB models)
         let mesh = intersects[0].object;
-        while (mesh.parent && mesh.parent !== this.heartGroup && mesh.parent.name !== 'heart_model') {
-          mesh = mesh.parent;
+        let nameId = null;
+        let target = null;
+        let current = mesh;
+        while (current) {
+          if (current.userData && current.userData.nameId) {
+            nameId = current.userData.nameId;
+            target = current;
+            break;
+          }
+          if (current === this.heartGroup) break;
+          current = current.parent;
         }
 
-        const nameId = mesh.userData.nameId || mesh.name;
+        if (nameId && target) {
+          if (this.hoveredMesh !== target) {
+            // Remove previous hover color
+            if (this.hoveredMesh && this.hoveredMesh !== this.selectedMesh) {
+              this.highlightAnatomy(this.hoveredMesh, false);
+            }
 
-        if (this.hoveredMesh !== mesh) {
-          // Remove previous hover color
-          if (this.hoveredMesh && this.hoveredMesh !== this.selectedMesh) {
-            highlightMaterial(this.materials[this.hoveredMesh.userData.nameId], false);
-          }
+            this.hoveredMesh = target;
 
-          this.hoveredMesh = mesh;
-
-          // Apply hover highlight
-          if (this.hoveredMesh !== this.selectedMesh && this.materials[nameId]) {
-            highlightMaterial(this.materials[nameId], true);
-            document.body.style.cursor = 'pointer';
+            // Apply hover highlight
+            if (this.hoveredMesh !== this.selectedMesh) {
+              this.highlightAnatomy(this.hoveredMesh, true);
+              document.body.style.cursor = 'pointer';
+            }
           }
         }
       } else {
         if (this.hoveredMesh) {
           if (this.hoveredMesh !== this.selectedMesh) {
-            highlightMaterial(this.materials[this.hoveredMesh.userData.nameId], false);
+            this.highlightAnatomy(this.hoveredMesh, false);
           }
           this.hoveredMesh = null;
           document.body.style.cursor = 'default';
@@ -642,9 +658,17 @@ export class Engine3D {
       const intersects = this.raycaster.intersectObjects(this.heartGroup.children, true);
 
       if (intersects.length > 0) {
+        // Find topmost named mesh node with a nameId
         let mesh = intersects[0].object;
-        while (mesh.parent && mesh.parent !== this.heartGroup && mesh.parent.name !== 'heart_model') {
-          mesh = mesh.parent;
+        let nameId = null;
+        let current = mesh;
+        while (current) {
+          if (current.userData && current.userData.nameId) {
+            nameId = current.userData.nameId;
+            break;
+          }
+          if (current === this.heartGroup) break;
+          current = current.parent;
         }
 
         // Auto-focus on heart when clicked inside skeleton
@@ -653,8 +677,7 @@ export class Engine3D {
           return;
         }
 
-        const nameId = mesh.userData.nameId || mesh.name;
-        if (HeartData[nameId]) {
+        if (nameId && HeartData[nameId]) {
           // Toggle selection: if already selected, clear it
           if (this.selectedMesh && this.selectedMesh.userData.nameId === nameId) {
             this.clearSelection();
@@ -673,7 +696,7 @@ export class Engine3D {
   selectAnatomy(nameId) {
     // 1. Clear previous selection highlight
     if (this.selectedMesh) {
-      highlightMaterial(this.materials[this.selectedMesh.userData.nameId], false);
+      this.highlightAnatomy(this.selectedMesh, false);
     }
 
     // 2. Find target mesh in group
@@ -686,7 +709,7 @@ export class Engine3D {
 
     if (targetMesh) {
       this.selectedMesh = targetMesh;
-      highlightMaterial(this.materials[nameId], true);
+      this.highlightAnatomy(this.selectedMesh, true);
 
       // Hide all other parts, show only the selected part
       this.heartGroup.traverse(node => {
@@ -724,7 +747,7 @@ export class Engine3D {
   // Reset selected mesh
   clearSelection() {
     if (this.selectedMesh) {
-      highlightMaterial(this.materials[this.selectedMesh.userData.nameId], false);
+      this.highlightAnatomy(this.selectedMesh, false);
       this.selectedMesh = null;
     }
 
@@ -934,9 +957,9 @@ export class Engine3D {
     if (this.heartGroup && this.isBeating) {
       const beatScaleVal = this.getHeartbeatScale(elapsedTime, this.bpm);
 
-      this.heartGroup.children.forEach(node => {
-        // Only scale main anatomical structures, skip branches/interior details directly
-        if (node.userData && node.userData.originalScale) {
+      this.heartGroup.traverse(node => {
+        // Scale meshes with registered original scales (supporting deep node structures of GLTF)
+        if (node.isMesh && node.userData && node.userData.originalScale) {
           const original = node.userData.originalScale;
           let factor = 1.0;
 
@@ -946,9 +969,12 @@ export class Engine3D {
             // Atrial beating has opposite phase
             const atrialScaleVal = this.getHeartbeatScale(elapsedTime + (60 / this.bpm) * 0.2, this.bpm);
             factor = 1.0 - atrialScaleVal * 0.8;
+          } else if (node.name === 'heart') {
+            // Realistic heart beats as a single unified organ
+            factor = 1.0 - beatScaleVal * 0.55;
           } else {
             // Vessels expand slightly due to blood surge during vent contraction
-            factor = 1.0 + beatScaleVal * 0.2;
+            factor = 1.0 + beatScaleVal * 0.15;
           }
 
           node.scale.set(

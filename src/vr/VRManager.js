@@ -173,12 +173,20 @@ export class VRManager {
       
       if (intersects.length > 0) {
         let mesh = intersects[0].object;
-        while (mesh.parent && mesh.parent !== this.engine.heartGroup && mesh.parent.name !== 'heart_model') {
-          mesh = mesh.parent;
+        let nameId = null;
+        let current = mesh;
+        while (current) {
+          if (current.userData && current.userData.nameId) {
+            nameId = current.userData.nameId;
+            break;
+          }
+          if (current === this.engine.heartGroup) break;
+          current = current.parent;
         }
         
-        const nameId = mesh.userData.nameId || mesh.name;
-        this.engine.selectAnatomy(nameId);
+        if (nameId) {
+          this.engine.selectAnatomy(nameId);
+        }
       } else {
         // click empty air to clear selection
         this.engine.clearSelection();
