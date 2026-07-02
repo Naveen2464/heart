@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediXR - Immersive 3D Heart Visualizer</title>
+  <meta name="description" content="A premium WebXR healthcare application to visualize and interact with a medically accurate 3D human heart using AR, MR, VR, and voice controls.">
+  
+  <!-- Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="styles/main.css?v=1.0.2">
+  
+  <!-- Three.js and Helper Libraries from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body class="dark-theme">
+
+  <!-- Beating Heart Loading Screen -->
+  <div id="loader" class="loader-overlay">
+    <div class="loader-content">
+      <div class="pulse-heart-wrapper">
+        <svg class="pulse-heart" viewBox="0 0 32 29.6">
+          <path d="M23.6,0c-3.4,0-6.3,2.7-7.6,5.6C14.7,2.7,11.8,0,8.4,0C3.8,0,0,3.8,0,8.4c0,9.4,9.5,11.9,16,21.2
+          c6.1-9.3,16-12.1,16-21.2C32,3.8,28.2,0,23.6,0z"/>
+        </svg>
+        <div class="pulse-ring"></div>
+      </div>
+      <h2>MediXR</h2>
+      <p id="loader-status">Initializing 3D Anatomy Engine...</p>
+      <div class="progress-bar-container">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Canvas Container -->
+  <main id="canvas-container"></main>
+
+  <!-- Accessibility Reader HUD -->
+  <div id="screen-reader-hud" class="sr-only" aria-live="assertive">Welcome to MediXR. Use Tab key to navigate UI, or enable Voice Navigation.</div>
+
+  <!-- Application HUD Overlays -->
+  <div class="hud-layer">
+    
+    <!-- AR Placement Instructions Notice -->
+    <div id="ar-instructions" class="ar-instructions glass-card">
+      <p>Scan surroundings & tap screen to place the heart</p>
+    </div>
+    
+    <!-- Top Bar: Navigation, Status and Modes -->
+    <header class="hud-top-bar glass-card">
+      <div class="hud-logo">
+        <span class="logo-dot"></span>
+        <h1>MediXR <span class="version-tag">Heart v1.0</span></h1>
+      </div>
+      
+      <!-- Immersive Mode Buttons (Adapts state based on capabilities) -->
+      <div class="xr-mode-selector">
+        <button id="btn-desktop" class="xr-btn active" title="Switch to Desktop 3D View">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>
+          <span>3D View</span>
+        </button>
+        <button id="btn-ar" class="xr-btn" title="Start AR Mode — Augmented Reality Anatomy Explorer">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+          <span>AR Mode</span>
+        </button>
+        <button id="btn-vr" class="xr-btn" title="Start VR Lab — Virtual Reality Medical Lab">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-12 9H5v-2h4v2zm10 0h-4v-2h4v2z"/></svg>
+          <span>VR Lab</span>
+        </button>
+        <button id="btn-xr" class="xr-btn" title="Launch best available WebXR experience">
+          <span>Auto XR</span>
+        </button>
+      </div>
+
+      <!-- Quick Accessibility and Voice Toggles -->
+      <div class="quick-utilities">
+        <button id="btn-voice-toggle" class="util-btn" title="Toggle Voice Recognition Controls" aria-label="Toggle Voice Control">
+          <svg class="icon mic-icon" viewBox="0 0 24 24">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+          </svg>
+          <span class="pulse-indicator"></span>
+        </button>
+        <button id="btn-accessibility" class="util-btn" title="Accessibility Panel" aria-label="Open Accessibility Panel">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H9V9H3V7h18v2z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Mode Status Banner -->
+    <div id="mode-banner" class="mode-banner hidden">
+      <div class="mode-banner-icon" id="mode-banner-icon">🖥️</div>
+      <span id="mode-banner-text">3D Desktop View</span>
+      <span class="mode-banner-hint">Click any heart structure to explore</span>
+    </div>
+
+    <!-- Sidebar Left: Controls and Scene Settings -->
+    <section id="panel-left" class="hud-sidebar left-sidebar glass-card">
+      <div class="panel-header">
+        <h2>System Controls</h2>
+        <button class="collapse-btn" aria-label="Collapse Controls Panel" onclick="document.getElementById('panel-left').classList.toggle('collapsed')">
+          <svg viewBox="0 0 24 24" class="icon"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        </button>
+      </div>
+
+      <div class="panel-scroll-content">
+        <!-- Interactive Playbacks -->
+        <div class="control-group">
+          <h3>Simulation Toggles</h3>
+          <div class="toggle-row">
+            <label for="switch-beat">Heartbeat Animation</label>
+            <label class="switch">
+              <input type="checkbox" id="switch-beat" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label for="switch-flow">Blood Flow Visualization</label>
+            <label class="switch">
+              <input type="checkbox" id="switch-flow" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label for="switch-section">Cross-Section (Slice View)</label>
+            <label class="switch">
+              <input type="checkbox" id="switch-section">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label for="switch-labels">Anatomy Label Tags</label>
+            <label class="switch">
+              <input type="checkbox" id="switch-labels" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label for="switch-view-mode">Focus Heart Only</label>
+            <label class="switch">
+              <input type="checkbox" id="switch-view-mode">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 3D Modifiers -->
+        <div class="control-group">
+          <h3>Interactive Modifiers</h3>
+          <div class="range-row">
+            <div class="range-labels">
+              <label for="slider-rotation-speed">Auto-Rotation</label>
+              <span id="rotation-speed-val">0.05x</span>
+            </div>
+            <input type="range" id="slider-rotation-speed" min="0" max="0.2" step="0.01" value="0.05">
+          </div>
+          <div class="range-row">
+            <div class="range-labels">
+              <label for="slider-pulse-rate">Heartbeat Speed (BPM)</label>
+              <span id="pulse-rate-val">72 BPM</span>
+            </div>
+            <input type="range" id="slider-pulse-rate" min="40" max="180" step="1" value="72">
+          </div>
+          <div class="range-row">
+            <div class="range-labels">
+              <label for="slider-slice-pos">Slice Depth</label>
+              <span id="slice-pos-val">0.0</span>
+            </div>
+            <input type="range" id="slider-slice-pos" min="-1" max="1" step="0.02" value="0.0" disabled>
+          </div>
+        </div>
+
+        <!-- Scene Utilities -->
+        <div class="control-group action-buttons">
+          <button id="btn-reset-scene" class="primary-btn">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            <span>Reset 3D Space</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sidebar Right: Selected Structure Details -->
+    <section id="panel-right" class="hud-sidebar right-sidebar glass-card collapsed">
+      <div class="panel-header">
+        <h2>Medical Information</h2>
+        <button class="collapse-btn" aria-label="Collapse Information Panel" onclick="document.getElementById('panel-right').classList.toggle('collapsed')">
+          <svg viewBox="0 0 24 24" class="icon"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+        </button>
+      </div>
+
+      <div class="panel-scroll-content">
+        <div id="selection-placeholder" class="info-placeholder">
+          <svg viewBox="0 0 24 24" class="pulse-icon"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <p>Tap or click on any anatomical structure of the heart to load medical analysis and educational facts.</p>
+        </div>
+
+        <div id="info-details" class="info-details hidden">
+          <div class="info-header-container">
+            <h3 id="info-title">Left Ventricle</h3>
+            <button id="btn-read-info" class="speak-btn" title="Speak medical details">
+              <svg viewBox="0 0 24 24" class="icon"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            </button>
+          </div>
+          
+          <div class="info-card-section">
+            <h4>Anatomical Function</h4>
+            <p id="info-function">Description of the function goes here.</p>
+          </div>
+
+          <div class="info-card-section highlighted-section">
+            <h4>Clinical Importance</h4>
+            <p id="info-clinical">Clinical relevance goes here.</p>
+          </div>
+
+          <div class="info-card-section">
+            <h4>Medical Details</h4>
+            <p id="info-explanation">Simple explanation goes here.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom Navigation Bar (Visible on mobile/tablet) -->
+    <nav class="hud-bottom-nav glass-card">
+      <button class="nav-item active" id="nav-viewer">
+        <svg viewBox="0 0 24 24" class="icon"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+        <span>3D Scene</span>
+      </button>
+      <button class="nav-item" id="nav-info">
+        <svg viewBox="0 0 24 24" class="icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        <span>Heart Info</span>
+      </button>
+      <button class="nav-item" id="nav-controls">
+        <svg viewBox="0 0 24 24" class="icon"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h6V7h-6V5h-2v6h2V9z"/></svg>
+        <span>Controls</span>
+      </button>
+    </nav>
+
+    <!-- Voice Recording Interaction Overlay HUD -->
+    <div id="voice-overlay" class="voice-overlay hidden">
+      <div class="voice-card glass-card">
+        <div class="voice-waves">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+        <p id="voice-status">Listening for medical commands...</p>
+        <p id="voice-transcript" class="transcript-subtext">"Explain Left Ventricle"</p>
+        <div class="voice-tips">
+          <span>Try saying: <strong>"Show Blood Flow"</strong>, <strong>"Reset Scene"</strong>, or <strong>"Explain Heart"</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Accessibility Panel Modal (Hidden by Default) -->
+    <div id="modal-accessibility" class="modal-overlay hidden">
+      <div class="modal-content glass-card">
+        <div class="modal-header">
+          <h2>Accessibility Options</h2>
+          <button id="btn-close-access" class="close-btn" aria-label="Close Modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="option-row">
+            <div>
+              <h3>Voice Control Guidance</h3>
+              <p>Allows speech-recognition commands to interact with the application.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="switch-voice-guide" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="option-row">
+            <div>
+              <h3>High Contrast Theme</h3>
+              <p>Applies high-visibility colors to text, lines, and HUD indicators.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="switch-contrast">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="option-row">
+            <div>
+              <h3>Large Typography</h3>
+              <p>Scale up label and description text for readability.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="switch-large-text">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="option-row">
+            <div>
+              <h3>Screen Reader Labels</h3>
+              <p>Expose anatomical names as virtual DOM elements for accessibility tags.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="switch-sr-hud" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Application Code Bundle -->
+  <!-- Note: We load our modular files sequentially or compile them into module scripts -->
+  <script type="module">
+    import { initApp } from './src/core/App.js';
+    window.addEventListener('DOMContentLoaded', () => {
+      initApp();
+    });
+  </script>
+</body>
+</html>

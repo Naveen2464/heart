@@ -1,0 +1,20 @@
+{
+  "name": "medixr",
+  "version": "1.0.0",
+  "description": "Immersive WebXR Human Heart Anatomy Visualizer",
+  "scripts": {
+    "dev": "node server.js",
+    "dev:http": "npx -y http-server -p 8080 -c-1"
+  },
+  "keywords": [
+    "webxr",
+    "anatomy",
+    "threejs",
+    "healthcare",
+    "ar",
+    "vr",
+    "mr"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}
