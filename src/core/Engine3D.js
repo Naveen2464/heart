@@ -1561,7 +1561,7 @@ export class Engine3D {
     drawButton('Reset Scene Space', 156, 240, 200, 50, false);
 
     this.vrControlPanel.material.map.needsUpdate = true;
-    this.vrControlPanel.visible = (this.appMode !== 'desktop');
+    this.vrControlPanel.visible = (this.appMode === 'vr');
   }
 
   // Handle raycast click on specific control panel coordinate options
@@ -1585,7 +1585,7 @@ export class Engine3D {
     }
     else if (x >= 272 && x <= 472 && y >= 90 && y <= 140) {
       const newState = !this.isFlowing;
-      this.isFlowing = newState;
+      this.setBloodFlowEnabled(newState);
       const flowSwitch = document.getElementById('switch-flow');
       if (flowSwitch) flowSwitch.checked = newState;
 

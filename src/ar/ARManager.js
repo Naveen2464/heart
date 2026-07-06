@@ -148,6 +148,13 @@ export class ARManager {
       this.onSelectCallback = (event) => this.onARSelect(this.controller, event);
       this.controller.addEventListener('select', this.onSelectCallback);
 
+      this.onSqueezeStartCallback = (event) => {
+        if (event && event.data && event.data.targetRayMode === 'screen') return;
+        console.log("ARManager: Squeeze/grip pressed. Clearing selection.");
+        this.engine.clearSelection();
+      };
+      this.controller.addEventListener('squeezestart', this.onSqueezeStartCallback);
+
       // Create a visual laser pointer line for controller aiming
       const laserGeometry = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),
@@ -225,11 +232,6 @@ export class ARManager {
   }
 
   onARSelect(controller, event) {
-    // Enforce controller-only: ignore screen/touch select events
-    if (event && event.data && event.data.targetRayMode === 'screen') {
-      console.log("ARManager: Ignoring touch-screen select event.");
-      return;
-    }
     // 1. Raycast against VR Info Panel first to handle Close [X] button clicks
     if (this.engine.vrInfoPanel && this.engine.vrInfoPanel.visible) {
       const tempMatrix = new THREE.Matrix4();
@@ -576,6 +578,10 @@ export class ARManager {
 
     if (this.controller) {
       this.controller.removeEventListener('select', this.onSelectCallback);
+      if (this.onSqueezeStartCallback) {
+        this.controller.removeEventListener('squeezestart', this.onSqueezeStartCallback);
+        this.onSqueezeStartCallback = null;
+      }
       if (this.onControllerConnected) {
         this.controller.removeEventListener('connected', this.onControllerConnected);
       }

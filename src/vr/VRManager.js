@@ -629,6 +629,12 @@ export class VRManager {
     if (event && event.data && event.data.targetRayMode === 'screen') {
       return;
     }
+
+    // Squeeze/grip button triggers selection clearing and panel closing
+    console.log("VRManager: Squeeze/grip pressed. Clearing active selections.");
+    this.triggerVRHaptic(controller, 0.4, 60);
+    this.engine.clearSelection();
+
     if (!this.engine.heartGroup) return;
 
     const ray = this.buildControllerRay(controller);
@@ -710,8 +716,89 @@ export class VRManager {
       if (state && state.connected && state.inputSource && state.inputSource.gamepad) {
         const controllerObj = this.controllers[i];
         const gamepad = state.inputSource.gamepad;
+
+        // 1. Process Button clicks (A, B, X, Y)
+        if (gamepad.buttons && gamepad.buttons.length > 5) {
+          if (!state.buttonClicks) state.buttonClicks = {};
+          const buttons = gamepad.buttons;
+          const handedness = state.handedness;
+
+          const checkClick = (btnIndex) => {
+            const isPressed = !!(buttons[btnIndex] && buttons[btnIndex].pressed);
+            const wasPressed = !!state.buttonClicks[btnIndex];
+            state.buttonClicks[btnIndex] = isPressed;
+            return isPressed && !wasPressed;
+          };
+
+          if (handedness === 'right' || handedness === 'none') {
+            // Button A (index 4) -> Toggle Heartbeat
+            if (checkClick(4)) {
+              console.log("VRManager: Button A clicked. Toggling Heartbeat.");
+              this.triggerVRHaptic(controllerObj, 0.45, 60);
+              
+              const newState = !this.engine.isBeating;
+              this.engine.setHeartbeatEnabled(newState);
+              const beatSwitch = document.getElementById('switch-beat');
+              if (beatSwitch) beatSwitch.checked = newState;
+              
+              this.engine.updateVRControlPanel();
+              this.engine.showVRSimulationInfo("Heartbeat Animation", newState 
+                ? "Heartbeat animation is now ACTIVE. The chambers contract and expand realistically simulating a cardiac cycle at the specified BPM rate."
+                : "Heartbeat animation has been PAUSED. The heart is in a static diastolic state, allowing close physical study of stationary structural relationships.");
+            }
+            // Button B (index 5) -> Toggle Exploded View
+            if (checkClick(5)) {
+              console.log("VRManager: Button B clicked. Toggling Exploded View.");
+              this.triggerVRHaptic(controllerObj, 0.45, 60);
+              
+              const newState = !this.engine.isExploded;
+              this.engine.setExplodedMode(newState);
+              const explodedSwitch = document.getElementById('switch-exploded');
+              if (explodedSwitch) explodedSwitch.checked = newState;
+              
+              this.engine.updateVRControlPanel();
+              this.engine.showVRSimulationInfo("Exploded View Mode", newState
+                ? "Exploded View is now ACTIVE. Key anatomical sections (ventricles, atria, aorta, etc.) expand outwards along offset vectors to show spatial assembly details."
+                : "Exploded View is now DISABLED. All sections translate back to their original integrated positions to display the fully assembled anatomical structure.");
+            }
+          }
+
+          if (handedness === 'left') {
+            // Button X (index 4) -> Toggle Blood Flow
+            if (checkClick(4)) {
+              console.log("VRManager: Button X clicked. Toggling Blood Flow.");
+              this.triggerVRHaptic(controllerObj, 0.45, 60);
+              
+              const newState = !this.engine.isFlowing;
+              this.engine.setBloodFlowEnabled(newState);
+              const flowSwitch = document.getElementById('switch-flow');
+              if (flowSwitch) flowSwitch.checked = newState;
+              
+              this.engine.updateVRControlPanel();
+              this.engine.showVRSimulationInfo("Blood Flow Particle System", newState
+                ? "Blood Flow particle visualization is now ACTIVE. Crimson oxygenated cells and deep blue deoxygenated cells track directional flows inside the ventricles and vessels."
+                : "Blood Flow particle system is now DISABLED. All active micro-particles are hidden to allow an unobstructed view of internal muscular and tissue walls.");
+            }
+            // Button Y (index 5) -> Toggle Transparency
+            if (checkClick(5)) {
+              console.log("VRManager: Button Y clicked. Toggling Transparency.");
+              this.triggerVRHaptic(controllerObj, 0.45, 60);
+              
+              const newState = !this.engine.isTransparency;
+              this.engine.setTransparencyMode(newState);
+              const transSwitch = document.getElementById('switch-transparency');
+              if (transSwitch) transSwitch.checked = newState;
+              
+              this.engine.updateVRControlPanel();
+              this.engine.showVRSimulationInfo("Transparency Mode", newState
+                ? "Transparency mode is now ACTIVE. Outer muscular tissue becomes translucent, revealing the internal chambers, valves, and blood flow paths in real-time."
+                : "Transparency mode is now DISABLED. Fully opaque muscular walls are restored, showing the external vascular structures and fat layers of the heart.");
+            }
+          }
+        }
+
+        // 2. Process Joystick/Thumbstick Axes
         const axes = gamepad.axes;
-        
         if (axes && axes.length >= 2) {
           let xAxis = 0;
           let yAxis = 0;
