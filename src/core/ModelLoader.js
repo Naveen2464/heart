@@ -5,7 +5,7 @@ import { createProceduralSkeleton } from '../utils/SkeletonGeometry.js';
 export class ModelLoader {
   constructor(manager) {
     this.loader = new THREE.GLTFLoader(manager);
-    this.modelPath = 'assets/models/heart.glb'; // Procedural fallback: 7 separate anatomy parts
+    this.modelPath = 'assets/models/realistic_human_heart.glb'; // Procedural fallback: 7 separate anatomy parts
   }
 
   /**
@@ -16,24 +16,6 @@ export class ModelLoader {
   loadSkeletonModel(onProgress) {
     return new Promise(async (resolve) => {
       const path = 'assets/models/skeleton.glb';
-      console.log(`ModelLoader: Checking for skeleton at '${path}'...`);
-      
-      // Check if the file exists first to avoid noisy 404 errors
-      let fileExists = false;
-      try {
-        const headResp = await fetch(path, { method: 'HEAD' });
-        fileExists = headResp.ok;
-      } catch (e) {
-        fileExists = false;
-      }
-      
-      if (!fileExists) {
-        console.log("ModelLoader: No skeleton GLB found. Using procedural wireframe skeleton.");
-        const proceduralSkeleton = createProceduralSkeleton();
-        resolve(proceduralSkeleton);
-        return;
-      }
-      
       console.log(`ModelLoader: Skeleton GLB found! Loading...`);
       this.loader.load(
         path,
@@ -107,97 +89,115 @@ export class ModelLoader {
    * @returns {Promise<THREE.Group>}
    */
   loadHeartModel(materials, onProgress) {
-    return new Promise(async (resolve) => {
-      console.log(`ModelLoader: Checking for GLB model at '${this.modelPath}'...`);
+    return new Promise((resolve) => {
+      const path = 'assets/models/realistic_human_heart.glb';
+      console.log(`ModelLoader: Attempting to load realistic human heart GLB: ${path}`);
       
-      // First, check if the file exists to avoid noisy 404 errors in the terminal
-      let fileExists = false;
-      try {
-        const headResp = await fetch(this.modelPath, { method: 'HEAD' });
-        fileExists = headResp.ok;
-      } catch (e) {
-        fileExists = false;
-      }
-      
-      if (!fileExists) {
-        console.log("ModelLoader: No GLB file found. Using high-fidelity procedural 3D heart model.");
-        if (onProgress) onProgress(100);
-        const proceduralHeart = createProceduralHeart(materials);
-        resolve(proceduralHeart);
-        return;
-      }
-      
-      console.log(`ModelLoader: GLB found! Loading from '${this.modelPath}'...`);
       this.loader.load(
-        this.modelPath,
+        path,
         (gltf) => {
-          console.log("ModelLoader: GLB model loaded successfully!");
+          console.log("ModelLoader: Realistic heart GLB loaded successfully!");
           const loadedModel = gltf.scene;
           
-          // Set up shadows and label ALL meshes with nameId='heart'
-          // so any click on any part of the realistic GLB registers correctly
+          // Traverse and assign materials and userData names
           loadedModel.traverse((node) => {
             if (node.isMesh) {
               node.castShadow = true;
               node.receiveShadow = true;
               
-              // Apply clipping plane to every mesh material
+              // Normalize names: map node name to closest anatomical ID
+              const normalizedName = this.normalizeMeshName(node.name);
+              if (normalizedName && materials[normalizedName]) {
+                node.material = materials[normalizedName];
+                node.name = normalizedName;
+                node.userData = {
+                  originalScale: node.scale.clone(),
+                  originalPosition: node.position.clone(),
+                  originalRotation: node.rotation.clone(),
+                  nameId: normalizedName
+                };
+              } else {
+                // If it's a generic node or heart wall, give it the left ventricle material
+                node.material = materials.left_ventricle.clone();
+                node.name = 'left_ventricle';
+                node.userData = {
+                  originalScale: node.scale.clone(),
+                  originalPosition: node.position.clone(),
+                  originalRotation: node.rotation.clone(),
+                  nameId: 'left_ventricle'
+                };
+              }
+              
               if (node.material) {
                 const mats = Array.isArray(node.material) ? node.material : [node.material];
                 mats.forEach(mat => {
-                  mat.clippingPlanes = [materials.left_ventricle.clippingPlanes[0]];
-                  mat.clipIntersection = false;
-                  mat.userData = {
-                    originalColor: mat.color ? mat.color.getHex() : 0xffffff,
-                    originalOpacity: mat.opacity !== undefined ? mat.opacity : 1.0,
-                    originalEmissive: mat.emissive ? mat.emissive.getHex() : 0x000000
-                  };
+                  if (mat && !mat.userData.originalColor) {
+                    mat.userData = {
+                      originalColor: mat.color ? mat.color.getHex() : 0xffffff,
+                      originalOpacity: mat.opacity !== undefined ? mat.opacity : 1.0,
+                      originalEmissive: mat.emissive ? mat.emissive.getHex() : 0x000000,
+                      originalEmissiveIntensity: mat.emissiveIntensity !== undefined ? mat.emissiveIntensity : 0.0
+                    };
+                  }
                 });
               }
-              
-              // Tag every mesh node — any click on any surface resolves to 'heart'
-              node.name = 'heart';
-              node.userData = {
-                originalScale: node.scale.clone(),
-                originalPosition: node.position.clone(),
-                originalRotation: node.rotation.clone(),
-                nameId: 'heart'
-              };
             }
           });
           
-          // Normalize scale: measure BEFORE scaling, then apply scale,
-          // then recompute bounding box for correct center offset
-          const preBox = new THREE.Box3().setFromObject(loadedModel);
-          const preSize = preBox.getSize(new THREE.Vector3());
-          const targetHeight = 3.0;
-          const scaleFactor = targetHeight / (preSize.y || 1);
+          // Normalize scale of loaded model to a standard height of 1.6 units
+          const heartBox = new THREE.Box3().setFromObject(loadedModel);
+          const heartSize = heartBox.getSize(new THREE.Vector3());
+          const targetHeight = 1.6;
+          const scaleFactor = targetHeight / (heartSize.y || 1);
           loadedModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
-          loadedModel.updateMatrixWorld(true);
           
-          // Recompute box AFTER scaling so the center is accurate
-          const postBox = new THREE.Box3().setFromObject(loadedModel);
-          const heartCenter = postBox.getCenter(new THREE.Vector3());
-          loadedModel.position.set(-heartCenter.x, -heartCenter.y, -heartCenter.z);
+          // Center the loaded model's geometry
+          loadedModel.updateMatrixWorld(true);
+          const heartCenter = heartBox.getCenter(new THREE.Vector3());
+          loadedModel.position.set(-heartCenter.x * scaleFactor, -heartCenter.y * scaleFactor + 0.2, -heartCenter.z * scaleFactor);
           
           const wrapperGroup = new THREE.Group();
           wrapperGroup.name = "heart_model";
+          wrapperGroup.userData = { isRealisticModel: true };
           wrapperGroup.add(loadedModel);
           
+          if (onProgress) onProgress(100);
           resolve(wrapperGroup);
         },
         // Progress callback
         (xhr) => {
-          if (xhr.lengthComputable) {
-            const percentComplete = (xhr.loaded / xhr.total) * 100;
-            if (onProgress) onProgress(percentComplete);
+          if (onProgress && xhr.total) {
+            const percent = Math.round((xhr.loaded / xhr.total) * 100);
+            onProgress(percent);
           }
         },
-        // Error callback: Trigger fallback immediately
+        // Error callback — fall back to procedural model
         (error) => {
-          console.warn("ModelLoader: GLB failed to parse. Falling back to procedural model.");
-          if (onProgress) onProgress(100);
+          console.warn("ModelLoader: Failed to load realistic heart GLB. Falling back to procedural model.", error);
           const proceduralHeart = createProceduralHeart(materials);
+          
+          proceduralHeart.traverse((node) => {
+            if (node.isMesh) {
+              node.castShadow = true;
+              node.receiveShadow = true;
+              
+              if (node.material) {
+                const mats = Array.isArray(node.material) ? node.material : [node.material];
+                mats.forEach(mat => {
+                  if (mat && !mat.userData.originalColor) {
+                    mat.userData = {
+                      originalColor: mat.color ? mat.color.getHex() : 0xffffff,
+                      originalOpacity: mat.opacity !== undefined ? mat.opacity : 1.0,
+                      originalEmissive: mat.emissive ? mat.emissive.getHex() : 0x000000,
+                      originalEmissiveIntensity: mat.emissiveIntensity !== undefined ? mat.emissiveIntensity : 0.0
+                    };
+                  }
+                });
+              }
+            }
+          });
+          
+          if (onProgress) onProgress(100);
           resolve(proceduralHeart);
         }
       );

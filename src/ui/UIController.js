@@ -2,12 +2,11 @@
 import { HeartData } from '../utils/HeartData.js';
 
 export class UIController {
-  constructor(engine, voiceEngine, arManager, vrManager, mrManager) {
+  constructor(engine, voiceEngine, arManager, vrManager) {
     this.engine = engine;
     this.voiceEngine = voiceEngine;
     this.arManager = arManager;
     this.vrManager = vrManager;
-    this.mrManager = mrManager;
 
     this.activeMobileTab = 'viewer';
   }
@@ -69,6 +68,22 @@ export class UIController {
         this.engine.setVisualizerMode(mode);
       });
     }
+
+    // 6. Transparency Switch
+    const transSwitch = document.getElementById('switch-transparency');
+    if (transSwitch) {
+      transSwitch.addEventListener('change', (e) => {
+        this.engine.setTransparencyMode(e.target.checked);
+      });
+    }
+
+    // 7. Exploded Switch
+    const explodedSwitch = document.getElementById('switch-exploded');
+    if (explodedSwitch) {
+      explodedSwitch.addEventListener('change', (e) => {
+        this.engine.setExplodedMode(e.target.checked);
+      });
+    }
   }
 
   // Bind side control panel range inputs
@@ -105,6 +120,14 @@ export class UIController {
         if (sliceVal) sliceVal.textContent = parseFloat(val).toFixed(2);
       });
     }
+
+    // 4. Disease select dropdown
+    const diseaseSelect = document.getElementById('select-disease');
+    if (diseaseSelect) {
+      diseaseSelect.addEventListener('change', (e) => {
+        this.engine.setDiseaseMode(e.target.value);
+      });
+    }
   }
 
   // Bind reset, text-to-speech, and modal triggers
@@ -114,6 +137,7 @@ export class UIController {
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         this.engine.resetScene();
+
         // Restore sliders visual values
         const rotSlider = document.getElementById('slider-rotation-speed');
         const rotVal = document.getElementById('rotation-speed-val');
@@ -138,6 +162,25 @@ export class UIController {
           sliceSlider.disabled = true;
           this.engine.setCrossSectionEnabled(false);
         }
+
+        // Reset transparency and exploded switches
+        const transSwitch = document.getElementById('switch-transparency');
+        if (transSwitch) {
+          transSwitch.checked = false;
+          this.engine.setTransparencyMode(false);
+        }
+
+        const explodedSwitch = document.getElementById('switch-exploded');
+        if (explodedSwitch) {
+          explodedSwitch.checked = false;
+          this.engine.setExplodedMode(false);
+        }
+
+        const diseaseSelect = document.getElementById('select-disease');
+        if (diseaseSelect) {
+          diseaseSelect.value = 'healthy';
+          this.engine.setDiseaseMode('healthy');
+        }
       });
     }
 
@@ -159,6 +202,36 @@ export class UIController {
             readBtn.classList.remove('active');
           });
         }
+      });
+    }
+
+    // Download Reference Diagram Button
+    const downloadDiagramBtn = document.getElementById('btn-download-diagram');
+    if (downloadDiagramBtn) {
+      downloadDiagramBtn.addEventListener('click', () => {
+        const imgEl = document.getElementById('info-image');
+        if (imgEl && imgEl.src) {
+          const link = document.createElement('a');
+          const title = document.getElementById('info-title').textContent.toLowerCase().replace(/\s+/g, '_');
+          link.download = `${title}_diagram.png`;
+          link.href = imgEl.src;
+          link.click();
+        }
+      });
+    }
+
+    // Download 3D Render Snapshot Button
+    const downloadSnapshotBtn = document.getElementById('btn-download-snapshot');
+    if (downloadSnapshotBtn) {
+      downloadSnapshotBtn.addEventListener('click', () => {
+        // Force rendering the scene immediately so WebGL's backbuffer contains active pixels
+        this.engine.renderer.render(this.engine.scene, this.engine.camera);
+        const dataUrl = this.engine.renderer.domElement.toDataURL('image/png');
+        const link = document.createElement('a');
+        const title = document.getElementById('info-title').textContent.toLowerCase().replace(/\s+/g, '_');
+        link.download = `${title}_3d_snapshot.png`;
+        link.href = dataUrl;
+        link.click();
       });
     }
   }
@@ -339,6 +412,26 @@ export class UIController {
       if (clinicalText) clinicalText.textContent = data.clinical;
       if (explanationText) explanationText.textContent = data.explanation;
 
+      // Set anatomical reference image src
+      const imgEl = document.getElementById('info-image');
+      if (imgEl) {
+        let imageSrc = '';
+        if (nameId === 'aorta') {
+          imageSrc = 'assets/images/aorta.png';
+        } else if (nameId === 'pulmonary_artery') {
+          imageSrc = 'assets/images/pulmonary_artery.png';
+        } else if (nameId === 'vena_cava') {
+          imageSrc = 'assets/images/vena_cava.png';
+        } else if (nameId === 'left_ventricle' || nameId === 'right_ventricle') {
+          imageSrc = 'assets/images/ventricle.png';
+        } else if (nameId === 'left_atrium' || nameId === 'right_atrium') {
+          imageSrc = 'assets/images/atrium.png';
+        } else {
+          imageSrc = 'assets/images/ventricle.png'; // default fallback
+        }
+        imgEl.src = imageSrc;
+      }
+
       // Swap Visibility
       if (placeholder) placeholder.classList.add('hidden');
       if (details) details.classList.remove('hidden');
@@ -354,14 +447,12 @@ export class UIController {
         if (navInfo) navInfo.click();
       }
 
-      // Automatically speak the medical details if in simulated AR/VR/XR modes
-      if (this.engine.appMode !== 'desktop') {
-        const textToSpeak = `${data.name}. Function: ${data.function}. Clinical Importance: ${data.clinical}`;
-        if (readBtn) readBtn.classList.add('active');
-        this.voiceEngine.speak(textToSpeak, () => {
-          if (readBtn) readBtn.classList.remove('active');
-        });
-      }
+      // Automatically speak the medical details when selected in any mode (desktop, AR, VR)
+      const textToSpeak = `${data.name}. Function: ${data.function}. Clinical Importance: ${data.clinical}`;
+      if (readBtn) readBtn.classList.add('active');
+      this.voiceEngine.speak(textToSpeak, () => {
+        if (readBtn) readBtn.classList.remove('active');
+      });
 
       // Accessibility notification
       const srHud = document.getElementById('screen-reader-hud');
@@ -410,12 +501,9 @@ export class UIController {
   bindXRSessionTriggers() {
     const btnAr = document.getElementById('btn-ar');
     const btnVr = document.getElementById('btn-vr');
-    const btnMr = document.getElementById('btn-mr');
-    const btnDesktop = document.getElementById('btn-desktop');
-    const btnXr = document.getElementById('btn-xr');
 
     const updateActiveButton = (activeBtn) => {
-      [btnDesktop, btnAr, btnVr, btnMr, btnXr].forEach(btn => {
+      [btnAr, btnVr].forEach(btn => {
         if (btn) btn.classList.remove('active');
       });
       if (activeBtn) activeBtn.classList.add('active');
@@ -423,48 +511,25 @@ export class UIController {
 
     if (btnAr) {
       btnAr.addEventListener('click', () => {
-        updateActiveButton(btnAr);
-        this.transitionToMode('ar', () => this.arManager.startSession());
+        if (this.engine.appMode === 'ar') {
+          updateActiveButton(null);
+          this.transitionToMode('desktop', null);
+        } else {
+          updateActiveButton(btnAr);
+          this.transitionToMode('ar', () => this.arManager.startSession());
+        }
       });
     }
 
     if (btnVr) {
       btnVr.addEventListener('click', () => {
-        updateActiveButton(btnVr);
-        this.transitionToMode('vr', () => this.vrManager.startSession());
-      });
-    }
-
-    if (btnMr) {
-      btnMr.addEventListener('click', () => {
-        updateActiveButton(btnMr);
-        this.transitionToMode('mr', () => this.mrManager.startMRSession());
-      });
-    }
-
-    if (btnDesktop) {
-      btnDesktop.addEventListener('click', () => {
-        updateActiveButton(btnDesktop);
-        this.transitionToMode('desktop', null);
-      });
-    }
-
-    if (btnXr) {
-      btnXr.addEventListener('click', () => {
-        updateActiveButton(btnXr);
-        this.transitionToMode('xr', async () => {
-          const isVR = await navigator.xr.isSessionSupported('immersive-vr');
-          if (isVR) {
-            await this.vrManager.startSession();
-            return;
-          }
-          const isAR = await navigator.xr.isSessionSupported('immersive-ar');
-          if (isAR) {
-            await this.arManager.startSession();
-            return;
-          }
-          throw new Error("No WebXR session support");
-        });
+        if (this.engine.appMode === 'vr') {
+          updateActiveButton(null);
+          this.transitionToMode('desktop', null);
+        } else {
+          updateActiveButton(btnVr);
+          this.transitionToMode('vr', () => this.vrManager.startSession());
+        }
       });
     }
   }

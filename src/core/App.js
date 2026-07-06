@@ -3,7 +3,6 @@ import { Engine3D } from './Engine3D.js';
 import { VoiceEngine } from '../voice/VoiceEngine.js';
 import { ARManager } from '../ar/ARManager.js';
 import { VRManager } from '../vr/VRManager.js';
-import { MRManager } from '../mr/MRManager.js';
 import { UIController } from '../ui/UIController.js';
 import { Accessibility } from '../ui/Accessibility.js';
 
@@ -11,7 +10,6 @@ let engine = null;
 let voiceEngine = null;
 let arManager = null;
 let vrManager = null;
-let mrManager = null;
 let uiController = null;
 let accessibility = null;
 
@@ -24,24 +22,25 @@ export function initApp() {
 
   // 2. Initialize Voice Engine (Speech recognition / TTS)
   voiceEngine = new VoiceEngine();
+  engine.voiceEngine = voiceEngine;
 
   // 3. Initialize WebXR managers
   arManager = new ARManager(engine);
   vrManager = new VRManager(engine);
-  mrManager = new MRManager(engine);
+  engine.arManager = arManager;
+  engine.vrManager = vrManager;
 
   // 4. Initialize accessibility helper
   accessibility = new Accessibility(engine, voiceEngine);
   accessibility.init();
 
   // 5. Initialize UI controller and bind event listeners
-  uiController = new UIController(engine, voiceEngine, arManager, vrManager, mrManager);
+  uiController = new UIController(engine, voiceEngine, arManager, vrManager);
   uiController.bindUI();
 
   // 6. Check WebXR capabilities and update buttons states
   arManager.checkAvailability();
   vrManager.checkAvailability();
-  mrManager.checkAvailability();
 
   // 7. Connect WebXR session lifecycle to update global HUD/UI viewports
   setupXRSessionListeners();
@@ -53,19 +52,17 @@ function setupXRSessionListeners() {
   // Three.js renderer.xr emits events when entering/exiting WebXR presentation sessions
   const xr = engine.renderer.xr;
 
-  const btnDesktop = document.getElementById('btn-desktop');
   const btnAr = document.getElementById('btn-ar');
   const btnVr = document.getElementById('btn-vr');
-  const btnMr = document.getElementById('btn-mr');
 
   xr.addEventListener('sessionstart', () => {
     console.log("MediXR App: WebXR presentation session started.");
     
+    // Disable local clipping during XR sessions to prevent shader compilation bugs on mobile GPUs
+    engine.renderer.localClippingEnabled = false;
+
     // Focus the heart and hide skeleton in WebXR
     engine.setVisualizerMode('focused');
-    
-    // Deactivate Desktop button state
-    if (btnDesktop) btnDesktop.classList.remove('active');
     
     const session = xr.getSession();
     const mode = session.mode; // 'immersive-vr' or 'immersive-ar'
@@ -78,14 +75,9 @@ function setupXRSessionListeners() {
       document.getElementById('panel-left').classList.add('collapsed');
       document.getElementById('panel-right').classList.add('collapsed');
     } else if (mode === 'immersive-vr') {
-      if (engine.appMode === 'mr') {
-        if (btnMr) btnMr.classList.add('active');
-        accessibility.announceToScreenReader("Entered Mixed Reality Mode. Interact directly using your hands.");
-      } else {
-        if (btnVr) btnVr.classList.add('active');
-        engine.appMode = 'vr';
-        accessibility.announceToScreenReader("Entered VR Laboratory Mode. Use controller lasers to select structures.");
-      }
+      if (btnVr) btnVr.classList.add('active');
+      engine.appMode = 'vr';
+      accessibility.announceToScreenReader("Entered VR Laboratory Mode. Use controller lasers to select structures.");
       document.getElementById('panel-left').classList.add('collapsed');
       document.getElementById('panel-right').classList.add('collapsed');
     }
@@ -105,11 +97,9 @@ function setupXRSessionListeners() {
   xr.addEventListener('sessionend', () => {
     console.log("MediXR App: WebXR presentation session ended.");
     
-    // Restore button active state back to Desktop mode
-    if (btnDesktop) btnDesktop.classList.add('active');
+    // Restore button active state
     if (btnAr) btnAr.classList.remove('active');
     if (btnVr) btnVr.classList.remove('active');
-    if (btnMr) btnMr.classList.remove('active');
     
     // Stop active speech or voice overlays
     voiceEngine.stopSpeaking();
@@ -117,13 +107,15 @@ function setupXRSessionListeners() {
     
     engine.appMode = 'desktop';
     
+    // Re-enable local clipping for desktop mode
+    engine.renderer.localClippingEnabled = true;
+
     // Restore skeleton landing page view
     engine.setVisualizerMode('skeleton');
 
-    // Call VR, AR, and MR managers teardowns to clean up floor grids, reticles, and platforms
+    // Call VR and AR managers teardowns to clean up floor grids, reticles, and platforms
     if (vrManager) vrManager.endSession();
     if (arManager) arManager.endSession();
-    if (mrManager) mrManager.endSession();
     
     // Expand panels back for desktop
     if (window.innerWidth >= 1024) {

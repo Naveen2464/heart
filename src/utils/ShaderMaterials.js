@@ -138,12 +138,11 @@ export function highlightMaterial(material, isHighlighted) {
     return;
   }
   if (isHighlighted) {
-    if (material.color) material.color.setHex(0x00f0ff); // neon cyan tint
-    if (material.emissive) {
-      material.emissive.setHex(0x00f0ff);
+    // Keep the original color and enhance emissive intensity instead of overriding with solid cyan
+    if (material.emissiveIntensity !== undefined && material.userData) {
+      const origIntensity = material.userData.originalEmissiveIntensity !== undefined ? material.userData.originalEmissiveIntensity : 0.35;
+      material.emissiveIntensity = Math.min(origIntensity * 2.0, 1.0);
     }
-    if (material.emissiveIntensity !== undefined) material.emissiveIntensity = 0.6;
-    if (material.opacity !== undefined) material.opacity = 0.9;
     material.needsUpdate = true;
   } else {
     const od = material.userData;

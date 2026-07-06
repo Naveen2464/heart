@@ -16,10 +16,13 @@
   <!-- CSS Stylesheet -->
   <link rel="stylesheet" href="styles/main.css?v=1.0.2">
 
+  <!-- Zappar WebXR Polyfill (Zap Library) -->
+  <script src="https://libs.zappar.com/zappar-xr/0.0.3/zappar-xr.js"></script>
+
   <!-- Three.js and Helper Libraries from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 
 <body class="dark-theme">
@@ -58,21 +61,10 @@
     </div>
 
     <!-- Top Bar: Navigation, Status and Modes -->
-    <header class="hud-top-bar glass-card">
-      <div class="hud-logo">
-        <span class="logo-dot"></span>
-        <h1>MediXR <span class="version-tag">Heart v1.0</span></h1>
-      </div>
-
+    <header class="hud-top-bar" style="justify-content: center; border: none; background: transparent; box-shadow: none;">
       <!-- Immersive Mode Buttons (Adapts state based on capabilities) -->
       <div class="xr-mode-selector">
-        <button id="btn-desktop" class="xr-btn active" title="Switch to Desktop 3D View">
-          <svg class="icon" viewBox="0 0 24 24">
-            <path
-              d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z" />
-          </svg>
-          <span>3D View</span>
-        </button>
+
         <button id="btn-ar" class="xr-btn" title="Start AR Mode — Augmented Reality Anatomy Explorer">
           <svg class="icon" viewBox="0 0 24 24">
             <path
@@ -87,24 +79,10 @@
           </svg>
           <span>VR Lab</span>
         </button>
-        <button id="btn-mr" class="xr-btn" title="Start MR Mode — Mixed Reality and Hand Tracking">
-          <svg class="icon" viewBox="0 0 24 24">
-            <path
-              d="M12 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.37 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z" />
-          </svg>
-          <span>MR Mode</span>
-        </button>
-        <button id="btn-xr" class="xr-btn" title="Launch best available WebXR experience">
-          <svg class="icon" viewBox="0 0 24 24">
-            <path
-              d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-9 12H6v-2h4v2zm8 0h-4v-2h4v2zm-4-6H6V8h8v2z" />
-          </svg>
-          <span>Auto XR</span>
-        </button>
       </div>
 
       <!-- Quick Accessibility and Voice Toggles -->
-      <div class="quick-utilities">
+      <div class="quick-utilities" style="position: absolute; right: 20px; top: 15px; display: flex; gap: 10px;">
         <button id="btn-voice-toggle" class="util-btn" title="Toggle Voice Recognition Controls"
           aria-label="Toggle Voice Control">
           <svg class="icon mic-icon" viewBox="0 0 24 24">
@@ -180,6 +158,20 @@
               <span class="slider round"></span>
             </label>
           </div>
+          <div class="toggle-row">
+            <label for="switch-transparency">Transparency Mode</label>
+            <label class="switch">
+              <input type="checkbox" id="switch-transparency">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label for="switch-exploded">Exploded View</label>
+            <label class="switch">
+              <input type="checkbox" id="switch-exploded">
+              <span class="slider round"></span>
+            </label>
+          </div>
         </div>
 
         <!-- 3D Modifiers -->
@@ -205,6 +197,17 @@
               <span id="slice-pos-val">0.0</span>
             </div>
             <input type="range" id="slider-slice-pos" min="-1" max="1" step="0.02" value="0.0" disabled>
+          </div>
+          <div class="range-row">
+            <div class="range-labels">
+              <label for="select-disease">Anatomy Condition</label>
+            </div>
+            <select id="select-disease" class="disease-select" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-glass); color: var(--color-text-main); font-family: var(--font-family); outline: none;">
+              <option value="healthy" style="background: var(--bg-base);">Healthy Heart</option>
+              <option value="infarction" style="background: var(--bg-base);">Myocardial Infarction</option>
+              <option value="valve" style="background: var(--bg-base);">Valve Disease</option>
+              <option value="hypertrophy" style="background: var(--bg-base);">Cardiac Hypertrophy</option>
+            </select>
           </div>
         </div>
 
@@ -253,6 +256,11 @@
             </button>
           </div>
 
+          <!-- Anatomical reference image -->
+          <div class="info-image-container">
+            <img id="info-image" class="info-image" src="" alt="Heart Part Reference Diagram">
+          </div>
+
           <div class="info-card-section">
             <h4>Anatomical Function</h4>
             <p id="info-function">Description of the function goes here.</p>
@@ -266,6 +274,22 @@
           <div class="info-card-section">
             <h4>Medical Details</h4>
             <p id="info-explanation">Simple explanation goes here.</p>
+          </div>
+
+          <!-- Download image buttons -->
+          <div class="download-section">
+            <button id="btn-download-diagram" class="primary-btn download-btn" title="Download Reference Diagram">
+              <svg viewBox="0 0 24 24" class="icon">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
+              </svg>
+              <span>Download Diagram</span>
+            </button>
+            <button id="btn-download-snapshot" class="primary-btn download-btn" title="Download 3D Render Snapshot">
+              <svg viewBox="0 0 24 24" class="icon">
+                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+              </svg>
+              <span>Download Snapshot</span>
+            </button>
           </div>
         </div>
       </div>

@@ -19,6 +19,10 @@ export class Engine3D {
     this.isCrossSection = false;
     this.showLabels = true;
     this.sliceDepth = 0.0;
+    this.isTransparency = false;
+    this.isExploded = false;
+    this.diseaseMode = 'healthy';
+    this.isGrabbed = false;
 
     // Animation timers
     this.clock = new THREE.Clock();
@@ -35,14 +39,9 @@ export class Engine3D {
     this.heartGroup = null;
     this.particles = null;
     this.visualizerMode = 'skeleton'; // 'skeleton' or 'focused'
-    this.appMode = 'desktop'; // 'desktop', 'ar', 'vr', 'mr', 'xr'
+    this.appMode = 'desktop'; // 'desktop', 'ar', 'vr', 'xr'
     this.arSimGroup = null;
     this.vrSimGroup = null;
-    this.mrSimGroup = null;
-    this.simulatedHands = null;
-    this.leftSimHand = null;
-    this.rightSimHand = null;
-    this.simHandJoints = [];
     this.arScanPlane = null;
     this.podiumMat = null;
     this.rimRing = null;
@@ -60,6 +59,17 @@ export class Engine3D {
       aorta: new THREE.Vector3(-0.4, 2.1, -0.1),
       pulmonary_artery: new THREE.Vector3(0.15, 1.25, 0.45),
       vena_cava: new THREE.Vector3(0.8, 1.5, -0.2)
+    };
+
+    // Direction offsets for exploded view mode
+    this.explodedOffsets = {
+      left_ventricle: new THREE.Vector3(-0.7, -0.7, 0.2),
+      right_ventricle: new THREE.Vector3(0.7, -0.5, 0.4),
+      left_atrium: new THREE.Vector3(-0.8, 0.8, -0.3),
+      right_atrium: new THREE.Vector3(0.8, 0.7, 0.1),
+      aorta: new THREE.Vector3(-0.2, 1.0, -0.2),
+      pulmonary_artery: new THREE.Vector3(0.1, 0.7, 0.5),
+      vena_cava: new THREE.Vector3(0.9, 0.8, -0.4)
     };
     this.labelElements = {};
   }
@@ -97,7 +107,7 @@ export class Engine3D {
     this.camera.position.set(0, 1.2, 5.5);
 
     // 3. Renderer with WebXR and Clipping support
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
@@ -228,116 +238,17 @@ export class Engine3D {
     this.rimRing.rotation.x = Math.PI / 2;
     this.rimRing.position.y = -0.29;
     this.vrSimGroup.add(this.rimRing);
-
-    // 3. MR Simulated Environment (Holographic pedestal, hand trackers)
-    this.mrSimGroup = new THREE.Group();
-    this.mrSimGroup.name = "mr_simulation";
-    this.mrSimGroup.visible = false;
-    this.scene.add(this.mrSimGroup);
-
-    // Holographic pedestal (semi-transparent glowing cylinder)
-    const mrPodiumGeo = new THREE.CylinderGeometry(0.35, 0.4, 0.8, 32);
-    const mrPodiumMat = new THREE.MeshPhysicalMaterial({
-      color: 0x0088ff,
-      transparent: true,
-      opacity: 0.35,
-      roughness: 0.1,
-      metalness: 0.9,
-      transmission: 0.6,
-      ior: 1.5,
-      emissive: 0x0088ff,
-      emissiveIntensity: 0.4,
-      side: THREE.DoubleSide
-    });
-    const mrPodium = new THREE.Mesh(mrPodiumGeo, mrPodiumMat);
-    mrPodium.position.y = -0.7;
-    this.mrSimGroup.add(mrPodium);
-
-    // Glowing podium rim ring (cyan/blue)
-    const mrRingGeo = new THREE.RingGeometry(0.33, 0.35, 32);
-    const mrRingMat = new THREE.MeshBasicMaterial({
-      color: 0x0088ff,
-      side: THREE.DoubleSide
-    });
-    const mrGlowRing = new THREE.Mesh(mrRingGeo, mrRingMat);
-    mrGlowRing.rotation.x = Math.PI / 2;
-    mrGlowRing.position.y = -0.29;
-    this.mrSimGroup.add(mrGlowRing);
-
-    // Simulated Hand Tracking: Left and Right hands represented by glowing spheres/lines
-    this.simulatedHands = new THREE.Group();
-    this.mrSimGroup.add(this.simulatedHands);
-
-    const jointGeo = new THREE.SphereGeometry(0.015, 8, 8);
-    const jointMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-
-    // Left Hand group
-    this.leftSimHand = new THREE.Group();
-    this.leftSimHand.position.set(-0.6, 0.5, 0.2);
-    this.simulatedHands.add(this.leftSimHand);
-
-    // Right Hand group
-    this.rightSimHand = new THREE.Group();
-    this.rightSimHand.position.set(0.6, 0.5, 0.2);
-    this.simulatedHands.add(this.rightSimHand);
-
-    // Create joint meshes for simulated hands
-    this.simHandJoints = [];
-    for (let h = 0; h < 2; h++) {
-      const handGroup = h === 0 ? this.leftSimHand : this.rightSimHand;
-      const joints = [];
-
-      // Wrist joint (index 0)
-      const wrist = new THREE.Mesh(jointGeo, jointMat);
-      wrist.position.set(0, 0, 0);
-      handGroup.add(wrist);
-      joints.push(wrist);
-
-      // Simple skeleton of a hand: 5 fingers * 3 joints each = 15 joints
-      for (let f = 0; f < 5; f++) {
-        const angle = (f - 2) * 0.2;
-        for (let k = 1; k <= 3; k++) {
-          const joint = new THREE.Mesh(jointGeo, jointMat);
-          const dist = 0.05 + k * 0.04;
-          joint.position.set(
-            Math.sin(angle) * dist,
-            Math.cos(angle) * dist + (f === 0 ? -0.01 : 0), // adjust thumb position slightly
-            k * 0.01
-          );
-          handGroup.add(joint);
-          joints.push(joint);
-        }
-      }
-      this.simHandJoints.push(joints);
-
-      // Connect them with thin lines to show bones
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x0088ff, transparent: true, opacity: 0.6 });
-      for (let f = 0; f < 5; f++) {
-        const points = [];
-        points.push(new THREE.Vector3(0, 0, 0));
-        const baseIndex = 1 + f * 3;
-        for (let k = 0; k < 3; k++) {
-          const jointMesh = joints[baseIndex + k];
-          points.push(jointMesh.position);
-        }
-
-        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-        const line = new THREE.Line(lineGeo, lineMat);
-        handGroup.add(line);
-      }
-    }
   }
 
   setAppMode(mode) {
-    this.appMode = mode; // 'desktop', 'ar', 'vr', 'mr', 'xr'
+    this.appMode = mode; // 'desktop', 'ar', 'vr', 'xr'
 
     // Reset all body classes
-    document.body.classList.remove('body-mode-ar', 'body-mode-vr', 'body-mode-mr', 'body-mode-xr');
+    document.body.classList.remove('body-mode-ar', 'body-mode-vr', 'body-mode-xr');
 
     // Hide all simulated environment groups by default
     if (this.arSimGroup) this.arSimGroup.visible = false;
     if (this.vrSimGroup) this.vrSimGroup.visible = false;
-    if (this.mrSimGroup) this.mrSimGroup.visible = false;
 
     // Handle status banner text & icon updates
     const banner = document.getElementById('mode-banner');
@@ -357,7 +268,7 @@ export class Engine3D {
       if (banner) banner.classList.remove('hidden');
       this.setVisualizerMode('focused');
 
-      // Scale down the heart in simulated AR/VR/MR/XR modes so it fits the viewport & podium perfectly (0.6x)
+      // Scale down the heart in simulated AR/VR/XR modes so it fits the viewport & podium perfectly (0.6x)
       if (this.heartGroup) {
         this.heartGroup.scale.set(0.6, 0.6, 0.6);
         this.heartGroup.position.set(0, 0.6, 0);
@@ -367,9 +278,13 @@ export class Engine3D {
         this.camera.position.set(0, 0.6, 3.8); // Adjust camera target and distance accordingly
       }
 
-      // Collapse sidebars for clean immersive simulation
-      if (panelLeft) panelLeft.classList.add('collapsed');
-      if (panelRight) panelRight.classList.add('collapsed');
+      // Keep left panel open so all simulation control buttons remain clickable
+      if (panelLeft) panelLeft.classList.remove('collapsed');
+      if (this.selectedMesh && panelRight) {
+        panelRight.classList.remove('collapsed');
+      } else {
+        if (panelRight) panelRight.classList.add('collapsed');
+      }
 
       if (mode === 'ar') {
         document.body.classList.add('body-mode-ar');
@@ -390,12 +305,6 @@ export class Engine3D {
           this.podiumMat.emissive.setHex(0x581c87);
           this.podiumMat.emissiveIntensity = 0.5;
         }
-      } else if (mode === 'mr') {
-        document.body.classList.add('body-mode-mr');
-        if (this.scene) this.scene.background = null;
-        if (bannerText) bannerText.textContent = 'Simulated MR Mode';
-        if (bannerIcon) bannerIcon.textContent = '🔵';
-        if (this.mrSimGroup) this.mrSimGroup.visible = true;
       } else if (mode === 'xr') {
         document.body.classList.add('body-mode-xr');
         if (this.scene) this.scene.background = new THREE.Color(0x050a12);
@@ -434,6 +343,19 @@ export class Engine3D {
     }).then((heartGroup) => {
       this.heartGroup = heartGroup;
 
+      // Update label anchors if a realistic model with region mapping was loaded
+      if (this.heartGroup.userData && this.heartGroup.userData.isRealisticModel) {
+        this.labelAnchors = {
+          left_ventricle: new THREE.Vector3(-0.35, -0.6, 0.4),
+          right_ventricle: new THREE.Vector3(0.35, -0.4, 0.5),
+          left_atrium: new THREE.Vector3(-0.45, 0.2, 0.2),
+          right_atrium: new THREE.Vector3(0.45, 0.25, 0.3),
+          aorta: new THREE.Vector3(-0.15, 0.8, 0.2),
+          pulmonary_artery: new THREE.Vector3(0.05, 0.45, 0.5),
+          vena_cava: new THREE.Vector3(0.55, 0.7, -0.1)
+        };
+      }
+
       // Add particles as child of heartGroup so they scale/move together
       if (this.particles) {
         this.heartGroup.add(this.particles);
@@ -441,8 +363,15 @@ export class Engine3D {
 
       this.scene.add(this.heartGroup);
 
-      // Default to landing page skeleton view
-      this.setVisualizerMode('skeleton');
+      // Default to landing page skeleton view unless user selected another mode during load
+      if (this.visualizerMode !== 'skeleton') {
+        this.setVisualizerMode(this.visualizerMode);
+      } else {
+        this.setVisualizerMode('skeleton');
+      }
+
+      // Create 3D sprite labels inside WebGL context for VR/AR modes
+      this.create3DLabels();
 
       // Complete Loading
       setTimeout(() => {
@@ -477,10 +406,11 @@ export class Engine3D {
       if (this.heartGroup) {
         this.heartGroup.visible = true; // Enforce heart visibility
         // Scale heart small to fit inside the ribcage
-        this.heartGroup.scale.set(0.08, 0.08, 0.08);
+        this.heartGroup.scale.set(0.04, 0.03, 0.04);
+
         // Position inside the chest cavity
-        // With feet at y=0 and head at y=2.0, chest/ribcage center is ~y=1.35
-        this.heartGroup.position.set(0.02, 1.35, 0.05);
+        // Set coordinates to center it inside the ribcage (X = 0.0, Y = 1.37, Z = -0.08)
+        this.heartGroup.position.set(0.0, 1.45, -0.08);
         if (this.skeletonGroup) {
           this.skeletonGroup.add(this.heartGroup);
         }
@@ -504,12 +434,19 @@ export class Engine3D {
         if (!isXR) {
           if (this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr') {
             // XR modes: smaller heart floating at standing eye level
-            this.heartGroup.scale.set(0.55, 0.55, 0.55);
-            this.heartGroup.position.set(0, 0, 0);
+            this.heartGroup.scale.set(0.6, 0.6, 0.6);
+            this.heartGroup.position.set(0, 0.6, 0);
           } else {
-            // Desktop: scale to fill viewport, offset to compensate geometry mass center (~y+0.25)
+            // Desktop: scale to fill viewport
             this.heartGroup.scale.set(1.1, 1.1, 1.1);
-            this.heartGroup.position.set(0, -0.25, 0);
+
+            // Calculate the geometric center dynamically using Three.js bounding box
+            const box = new THREE.Box3().setFromObject(this.heartGroup);
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+
+            // Shift the heart group so its exact visual center is aligned at (0, 0, 0)
+            this.heartGroup.position.copy(center).negate();
           }
         }
       }
@@ -517,11 +454,11 @@ export class Engine3D {
       // Camera: look straight at origin so heart is dead-center
       if (this.controls && !isXR) {
         if (this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr') {
-          this.controls.target.set(0, 0, 0);
-          this.camera.position.set(0, 0, 3.5);
+          this.controls.target.set(0, 0.6, 0);
+          this.camera.position.set(0, 0.6, 3.8);
         } else {
-          this.controls.target.set(0, -0.25, 0);
-          this.camera.position.set(0, -0.25, 4.5);
+          this.controls.target.set(0, 0, 0);
+          this.camera.position.set(0, 0, 4.5);
         }
       }
     }
@@ -610,6 +547,7 @@ export class Engine3D {
   }
 
   onWindowResize() {
+    if (this.renderer.xr.isPresenting) return;
     const width = this.container.clientWidth || window.innerWidth;
     const height = this.container.clientHeight || window.innerHeight;
     this.camera.aspect = width / height;
@@ -702,17 +640,33 @@ export class Engine3D {
       const intersects = this.raycaster.intersectObjects(this.heartGroup.children, true);
 
       if (intersects.length > 0) {
-        // Find topmost named mesh node with a nameId
         let mesh = intersects[0].object;
         let nameId = null;
-        let current = mesh;
-        while (current) {
-          if (current.userData && current.userData.nameId) {
-            nameId = current.userData.nameId;
-            break;
+
+        // Check if we hit a 3D Sprite label
+        if (mesh.isSprite && mesh.userData && mesh.userData.nameId) {
+          nameId = mesh.userData.nameId;
+        } else {
+          // Walk up hierarchy to find a mesh with a valid anatomy nameId
+          let current = mesh;
+          while (current) {
+            if (current.userData && current.userData.nameId && HeartData[current.userData.nameId]) {
+              nameId = current.userData.nameId;
+              break;
+            }
+            if (current === this.heartGroup) break;
+            current = current.parent;
           }
-          if (current === this.heartGroup) break;
-          current = current.parent;
+
+          // If mesh has an anatomy nameId directly (region-mapped realistic model)
+          if (!nameId && mesh.userData && mesh.userData.nameId && HeartData[mesh.userData.nameId]) {
+            nameId = mesh.userData.nameId;
+          }
+
+          // Fallback: use closest anchor point for any unresolved click on the heart
+          if (!nameId) {
+            nameId = this.getClosestAnatomy(intersects[0].point);
+          }
         }
 
         // Auto-focus on heart when clicked inside skeleton
@@ -736,49 +690,111 @@ export class Engine3D {
     }
   }
 
+  // Returns the nameId of the closest anatomical structure based on 3D distance
+  getClosestAnatomy(intersectionPoint) {
+    const localPoint = this.heartGroup.worldToLocal(intersectionPoint.clone());
+    let closestKey = null;
+    let minDist = Infinity;
+
+    Object.keys(this.labelAnchors).forEach(key => {
+      const anchor = this.labelAnchors[key];
+      const dist = localPoint.distanceTo(anchor);
+      if (dist < minDist) {
+        minDist = dist;
+        closestKey = key;
+      }
+    });
+
+    // Threshold to prevent picking a structure if clicking extremely far away
+    if (closestKey && minDist < 1.5) {
+      return closestKey;
+    }
+    return 'heart';
+  }
+
   // Set selected anatomy structure
   selectAnatomy(nameId) {
-    // 1. Clear previous selection highlight
+    // 1. Clear previous selection (restore all opacities)
     if (this.selectedMesh) {
       this.highlightAnatomy(this.selectedMesh, false);
+      this._restoreAllMeshOpacities();
     }
 
-    // 2. Find target mesh in group
+    // 2. Find the first target mesh with matching nameId in the group
     let targetMesh = null;
     this.heartGroup.traverse(node => {
-      if (node.userData && node.userData.nameId === nameId) {
+      if (!targetMesh && node.userData && node.userData.nameId === nameId) {
         targetMesh = node;
       }
     });
 
+    // If no mesh has this nameId directly but data exists, use the whole heartGroup as target
+    if (!targetMesh && HeartData[nameId]) {
+      targetMesh = this.heartGroup;
+      targetMesh.userData = targetMesh.userData || {};
+      targetMesh.userData.nameId = nameId;
+    }
+
     if (targetMesh) {
       this.selectedMesh = targetMesh;
-      this.highlightAnatomy(this.selectedMesh, true);
+      this.selectedMesh.userData._selectedNameId = nameId;
+      this.updateVRInfoPanel(nameId);
 
-      // Hide all other parts, show only the selected part
+      // Make selected parts fully visible and highlighted, and make non-matching parts
+      // semi-transparent so the rest of the heart remains visible (contextual visualization)
       this.heartGroup.traverse(node => {
         if (node.isMesh) {
-          if (node.userData && node.userData.nameId) {
-            node.visible = (node.userData.nameId === nameId);
-          } else {
-            // Check parent hierarchy for match (for submeshes of groups like aorta branches/vena cava)
-            let parentNode = node.parent;
-            let match = false;
-            while (parentNode && parentNode !== this.heartGroup) {
-              if (parentNode.userData && parentNode.userData.nameId === nameId) {
-                match = true;
-                break;
-              }
-              parentNode = parentNode.parent;
+          const meshNameId = node.userData ? node.userData.nameId : null;
+
+          // Check parent hierarchy too (for sub-meshes of groups like aorta branches)
+          let parentNameId = null;
+          let parentNode = node.parent;
+          while (parentNode && parentNode !== this.heartGroup) {
+            if (parentNode.userData && parentNode.userData.nameId) {
+              parentNameId = parentNode.userData.nameId;
+              break;
             }
-            node.visible = match;
+            parentNode = parentNode.parent;
           }
+
+          const isMatch = (meshNameId === nameId) || (parentNameId === nameId);
+
+          const mats = Array.isArray(node.material) ? node.material : [node.material];
+          mats.forEach(mat => {
+            if (mat) {
+              if (isMatch) {
+                // Keep the selected region at original opacity/color, but fully visible
+                mat.transparent = true;
+                mat.opacity = 1.0;
+                if (mat.userData && mat.userData.originalEmissive !== undefined && mat.emissive) {
+                  mat.emissive.setHex(mat.userData.originalEmissive);
+                }
+                if (mat.emissiveIntensity !== undefined && mat.userData) {
+                  const origIntensity = mat.userData.originalEmissiveIntensity !== undefined ? mat.userData.originalEmissiveIntensity : 0.35;
+                  mat.emissiveIntensity = Math.min(origIntensity * 2.0, 1.0);
+                }
+              } else {
+                // Completely hide non-selected parts to isolate the selected part
+                mat.transparent = true;
+                mat.opacity = 0.0;
+                if (mat.emissive) mat.emissive.setHex(0x000000);
+                if (mat.emissiveIntensity !== undefined) mat.emissiveIntensity = 0.0;
+              }
+              mat.needsUpdate = true;
+            }
+          });
+          node.visible = isMatch; // Only show matching meshes
         }
       });
 
       // Temporarily hide particles while showing only one selected part
       if (this.particles) {
         this.particles.visible = false;
+      }
+
+      // Highlight the target mesh itself
+      if (targetMesh !== this.heartGroup) {
+        this.highlightAnatomy(targetMesh, true);
       }
 
       // Update UI callback
@@ -788,6 +804,28 @@ export class Engine3D {
     }
   }
 
+  // Helper: restore all mesh materials to their original opacity/emissive values
+  _restoreAllMeshOpacities() {
+    if (!this.heartGroup) return;
+    this.heartGroup.traverse(node => {
+      if (node.isMesh) {
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(mat => {
+          if (mat && mat.userData) {
+            const od = mat.userData;
+            if (od.originalOpacity !== undefined) mat.opacity = od.originalOpacity;
+            if (od.originalEmissive !== undefined && mat.emissive) mat.emissive.setHex(od.originalEmissive);
+            if (od.originalEmissiveIntensity !== undefined && mat.emissiveIntensity !== undefined) {
+              mat.emissiveIntensity = od.originalEmissiveIntensity;
+            }
+            mat.needsUpdate = true;
+          }
+        });
+        node.visible = true;
+      }
+    });
+  }
+
   // Reset selected mesh
   clearSelection() {
     if (this.selectedMesh) {
@@ -795,13 +833,11 @@ export class Engine3D {
       this.selectedMesh = null;
     }
 
-    // Show all parts of the heart again
-    if (this.heartGroup) {
-      this.heartGroup.traverse(node => {
-        if (node.isMesh) {
-          node.visible = true;
-        }
-      });
+    // Restore all mesh opacities and visibility
+    this._restoreAllMeshOpacities();
+
+    if (this.vrInfoPanel) {
+      this.vrInfoPanel.visible = false;
     }
 
     // Restore active particles visibility
@@ -868,10 +904,9 @@ export class Engine3D {
   setCrossSectionEnabled(enabled) {
     this.isCrossSection = enabled;
     if (enabled) {
-      // Enable slicing
+      this.setVisualizerMode('focused');
       this.clippingPlane.constant = this.sliceDepth;
     } else {
-      // Move slicing plane completely outside boundaries to disable cuts
       this.clippingPlane.constant = 100.0;
     }
   }
@@ -888,10 +923,116 @@ export class Engine3D {
     Object.values(this.labelElements).forEach(el => {
       el.style.display = enabled ? 'flex' : 'none';
     });
+    if (this.spriteLabelsGroup) {
+      this.spriteLabelsGroup.visible = (enabled && this.appMode !== 'desktop');
+    }
   }
 
-  // Projects 3D label anchors to HTML screen coords
+  // Creates 3D labels inside the WebGL scene context so they render inside VR/AR headsets
+  create3DLabels() {
+    if (this.spriteLabelsGroup && this.heartGroup) {
+      this.heartGroup.remove(this.spriteLabelsGroup);
+    }
+
+    this.spriteLabelsGroup = new THREE.Group();
+    this.spriteLabelsGroup.name = "3d_sprite_labels";
+    this.spriteLabelsGroup.visible = false;
+
+    if (this.heartGroup) {
+      this.heartGroup.add(this.spriteLabelsGroup);
+    }
+
+    Object.keys(this.labelAnchors).forEach(key => {
+      const name = HeartData[key] ? HeartData[key].name : key;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+
+      // Draw background rounded rectangle with appropriate border color
+      ctx.fillStyle = 'rgba(5, 10, 18, 0.85)';
+      let borderColor = '#00f0ff';
+      if (key === 'aorta' || key === 'left_ventricle' || key === 'left_atrium') borderColor = '#dc2626';
+      if (key === 'pulmonary_artery' || key === 'right_ventricle' || key === 'right_atrium' || key === 'vena_cava') borderColor = '#2563eb';
+      ctx.strokeStyle = borderColor;
+
+      ctx.lineWidth = 4;
+      const x = 4, y = 4, w = canvas.width - 8, h = canvas.height - 8, r = 12;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw label text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        depthTest: false,
+        depthWrite: false
+      });
+      const sprite = new THREE.Sprite(material);
+
+      const anchor = this.labelAnchors[key];
+      // Offset the label slightly outward from the anchor for better readability
+      const labelOffset = anchor.clone().normalize().multiplyScalar(0.35);
+      const labelPos = anchor.clone().add(labelOffset);
+      sprite.position.copy(labelPos);
+
+      // Scale sprite to fit the scene size beautifully
+      sprite.scale.set(0.7, 0.175, 1.0);
+
+      sprite.userData = { nameId: key };
+      this.spriteLabelsGroup.add(sprite);
+
+      // Add a connecting line from label to anchor point on the heart
+      const lineColor = new THREE.Color(borderColor);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: lineColor,
+        transparent: true,
+        opacity: 0.6,
+        depthTest: false
+      });
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        anchor.clone(),
+        labelPos.clone()
+      ]);
+      const line = new THREE.Line(lineGeo, lineMat);
+      line.renderOrder = 999;
+      this.spriteLabelsGroup.add(line);
+    });
+  }
+
+  // Projects 3D label anchors to HTML screen coords, or handles 3D sprite labels in VR/AR
   updateLabelsProjection() {
+    const isXR = this.renderer.xr.isPresenting || this.appMode !== 'desktop';
+
+    if (isXR) {
+      // Hide HTML labels
+      this.hideAllLabels();
+      // Show 3D scene labels
+      if (this.spriteLabelsGroup) {
+        this.spriteLabelsGroup.visible = this.showLabels;
+      }
+      return;
+    }
+
+    // Hide 3D scene labels
+    if (this.spriteLabelsGroup) {
+      this.spriteLabelsGroup.visible = false;
+    }
+
     if (!this.showLabels || !this.heartGroup) return;
 
     const tempV = new THREE.Vector3();
@@ -905,6 +1046,10 @@ export class Engine3D {
 
       // Map local heart space to world space coordinates
       tempV.copy(anchor);
+      const isRealistic = this.heartGroup.userData && this.heartGroup.userData.isRealisticModel;
+      if (this.isExploded && isRealistic) {
+        tempV.multiplyScalar(1.45); // shift anchors outwards for realistic model
+      }
       this.heartGroup.localToWorld(tempV);
 
       // Project to 2D normalized screen space [-1, 1]
@@ -964,31 +1109,24 @@ export class Engine3D {
       this.arScanPlane.position.y = 0.6 + Math.sin(elapsedTime * 2) * 0.4;
     }
 
-    // Update simulated MR hands tracking movements
-    if (this.mrSimGroup && this.mrSimGroup.visible && this.simulatedHands) {
-      const t = elapsedTime;
-      this.leftSimHand.position.y = 0.45 + Math.sin(t * 1.5) * 0.05;
-      this.leftSimHand.position.x = -0.6 + Math.cos(t * 0.8) * 0.03;
 
-      this.rightSimHand.position.y = 0.45 + Math.cos(t * 1.7) * 0.05;
-      this.rightSimHand.position.x = 0.6 + Math.sin(t * 0.9) * 0.03;
-
-      // Wiggle finger joints slightly
-      this.simHandJoints.forEach((joints, h) => {
-        joints.forEach((joint, j) => {
-          if (j > 0) {
-            const wiggle = Math.sin(t * 3.0 + j * 0.5) * 0.005;
-            joint.position.z += wiggle * 0.1;
-          }
-        });
-      });
+    // 1. Controls (only update on desktop/non-WebXR mode)
+    if (this.controls && !this.renderer.xr.isPresenting) {
+      this.controls.update();
     }
 
-    // 1. Controls
-    if (this.controls) this.controls.update();
+    // Update WebXR VR Grabbing, Manipulation & Joystick Controls
+    if (this.vrManager) {
+      this.vrManager.updateVRGrabs(delta);
+    }
 
-    // 2. Auto-rotation
-    if (this.rotationSpeed > 0) {
+    // Update WebXR AR Joystick Controls
+    if (this.arManager && this.appMode === 'ar') {
+      this.arManager.updateARJoystick(delta);
+    }
+
+    // 2. Auto-rotation (pauses when grabbed by controllers)
+    if (this.rotationSpeed > 0 && !this.isGrabbed) {
       const angle = this.rotationSpeed * delta * 60;
       if (this.visualizerMode === 'skeleton') {
         if (this.skeletonGroup) this.skeletonGroup.rotation.y += angle;
@@ -1000,31 +1138,58 @@ export class Engine3D {
     // 3. Heartbeat Animation Squeeze
     if (this.heartGroup && this.isBeating) {
       const beatScaleVal = this.getHeartbeatScale(elapsedTime, this.bpm);
+      const isRealistic = this.heartGroup.userData && this.heartGroup.userData.isRealisticModel;
 
       this.heartGroup.traverse(node => {
         // Scale meshes with registered original scales (supporting deep node structures of GLTF)
         if (node.isMesh && node.userData && node.userData.originalScale) {
           const original = node.userData.originalScale;
           let factor = 1.0;
+          const partName = node.userData.nameId || node.name;
 
-          if (node.name === 'left_ventricle' || node.name === 'right_ventricle') {
+          if (isRealistic) {
+            // Realistic model: unified organ pulsing
+            factor = 1.0 - beatScaleVal * 0.55;
+          } else if (partName === 'left_ventricle' || partName === 'right_ventricle') {
             factor = 1.0 - beatScaleVal; // squeeze during ventricular contraction
-          } else if (node.name === 'left_atrium' || node.name === 'right_atrium') {
+          } else if (partName === 'left_atrium' || partName === 'right_atrium') {
             // Atrial beating has opposite phase
             const atrialScaleVal = this.getHeartbeatScale(elapsedTime + (60 / this.bpm) * 0.2, this.bpm);
             factor = 1.0 - atrialScaleVal * 0.8;
-          } else if (node.name === 'heart') {
-            // Realistic heart beats as a single unified organ
-            factor = 1.0 - beatScaleVal * 0.55;
           } else {
             // Vessels expand slightly due to blood surge during vent contraction
             factor = 1.0 + beatScaleVal * 0.15;
           }
 
+          // Apply cardiac hypertrophy modifier (only Left Ventricle thickened)
+          let hypertrophyFactorX = 1.0;
+          let hypertrophyFactorY = 1.0;
+          let hypertrophyFactorZ = 1.0;
+          if (this.diseaseMode === 'hypertrophy' && (partName === 'left_ventricle' || isRealistic)) {
+            hypertrophyFactorX = 1.35;
+            hypertrophyFactorY = 1.15;
+            hypertrophyFactorZ = 1.35;
+          }
+
           node.scale.set(
-            original.x * factor,
-            original.y * factor,
-            original.z * factor
+            original.x * factor * hypertrophyFactorX,
+            original.y * factor * hypertrophyFactorY,
+            original.z * factor * hypertrophyFactorZ
+          );
+        }
+      });
+    }
+
+    // 3b. Selection Breathing Highlight Animation (Pulsing isolated part)
+    if (this.selectedMesh && this.selectedMesh !== this.heartGroup) {
+      const selectedPulse = 1.0 + Math.sin(elapsedTime * 6.0) * 0.05;
+      this.selectedMesh.traverse(node => {
+        if (node.isMesh && node.userData && node.userData.originalScale) {
+          const original = node.userData.originalScale;
+          node.scale.set(
+            original.x * selectedPulse,
+            original.y * selectedPulse,
+            original.z * selectedPulse
           );
         }
       });
@@ -1032,9 +1197,32 @@ export class Engine3D {
 
     // 4. Update Blood Flow Particles
     if (this.isFlowing && this.particles) {
-      // Speed scales proportionally with Heart BPM
-      const speedCoeff = this.bpm / 72;
+      // Speed scales proportionally with Heart BPM, and is modified by disease mode
+      let speedCoeff = this.bpm / 72;
+      if (this.diseaseMode === 'valve') {
+        // Erratically flow backwards/reflux (oscillates forward and backward)
+        speedCoeff *= 0.5 * Math.sin(elapsedTime * 4.5);
+      }
       updateBloodFlowParticles(this.particles, speedCoeff);
+    }
+
+    // 7. Exploded View component translation lerp
+    if (this.heartGroup) {
+      const isRealistic = this.heartGroup.userData && this.heartGroup.userData.isRealisticModel;
+      // Exploded view works with procedural model (named meshes) but not realistic GLB
+      if (!isRealistic) {
+        Object.keys(this.explodedOffsets).forEach(key => {
+          const mesh = this.heartGroup.getObjectByName(key);
+          if (mesh) {
+            const originalPos = mesh.userData.originalPosition;
+            const targetPos = originalPos.clone();
+            if (this.isExploded) {
+              targetPos.add(this.explodedOffsets[key]);
+            }
+            mesh.position.lerp(targetPos, 0.1);
+          }
+        });
+      }
     }
 
     // 5. Update HTML Label coordinates projecting on screen
@@ -1042,5 +1230,502 @@ export class Engine3D {
 
     // 6. Render call
     this.renderer.render(this.scene, this.camera);
+  }
+
+  // Toggles Transparency Mode to reveal internal blood flow chambers
+  setTransparencyMode(enabled) {
+    this.isTransparency = enabled;
+    if (!this.heartGroup) return;
+
+    if (enabled) {
+      this.setVisualizerMode('focused');
+    }
+
+    const isRealistic = this.heartGroup.userData && this.heartGroup.userData.isRealisticModel;
+
+    this.heartGroup.traverse(node => {
+      if (node.isMesh) {
+        const partName = node.userData ? node.userData.nameId : null;
+        // Semi-transparent outer surface, keep vessels/flow opaque
+        const isOuterWall = isRealistic ||
+          (partName === 'left_ventricle' || partName === 'right_ventricle' ||
+            partName === 'left_atrium' || partName === 'right_atrium');
+
+        if (isOuterWall) {
+          const mats = Array.isArray(node.material) ? node.material : [node.material];
+          mats.forEach(mat => {
+            if (mat) {
+              mat.transparent = true;
+              mat.opacity = enabled ? 0.22 : (mat.userData && mat.userData.originalOpacity !== undefined ? mat.userData.originalOpacity : 1.0);
+              mat.needsUpdate = true;
+            }
+          });
+        }
+      }
+    });
+  }
+
+  // Toggles Exploded View to separate components or widen labels projection layout
+  setExplodedMode(enabled) {
+    this.isExploded = enabled;
+    if (enabled) {
+      this.setVisualizerMode('focused');
+    }
+  }
+
+  // Sets Disease Comparison mode modifying BPM, textures, or shapes
+  setDiseaseMode(mode) {
+    this.diseaseMode = mode;
+    if (!this.heartGroup || !this.materials) return;
+
+    if (mode !== 'healthy') {
+      this.setVisualizerMode('focused');
+    }
+
+    // Reset speeds, colors, and textures to healthy state first
+    this.bpm = 72;
+    const bpmSlider = document.getElementById('slider-pulse-rate');
+    const bpmVal = document.getElementById('pulse-rate-val');
+
+    // Restore original materials colors
+    this.heartGroup.traverse(node => {
+      if (node.isMesh && node.material) {
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(mat => {
+          const od = mat.userData;
+          if (od && od.originalColor !== undefined) {
+            if (mat.color) mat.color.setHex(od.originalColor);
+          }
+        });
+      }
+    });
+
+    if (mode === 'healthy') {
+      this.bpm = 72;
+      this.speakNarration("Displaying a healthy human cardiovascular system. Normal sinus rhythm is active at 72 beats per minute.");
+    }
+    else if (mode === 'infarction') {
+      // irregular/slow BPM simulating heart muscle attack
+      this.bpm = 48;
+      // Change Left Ventricle meshes to grayish blue (ischemic/dead tissue)
+      let foundLV = false;
+      this.heartGroup.traverse(node => {
+        if (node.isMesh && node.userData && node.userData.nameId === 'left_ventricle') {
+          const mats = Array.isArray(node.material) ? node.material : [node.material];
+          mats.forEach(mat => {
+            if (mat && mat.color) mat.color.setHex(0x334155);
+          });
+          foundLV = true;
+        }
+      });
+      // If no LV found, apply ischemic discoloration to all meshes
+      if (!foundLV) {
+        this.heartGroup.traverse(node => {
+          if (node.isMesh && node.material && node.material.color) {
+            node.material.color.setHex(0x5a5566);
+          }
+        });
+      }
+      this.speakNarration("Myocardial Infarction mode loaded. The heart rate is depressed to 48 beats per minute due to localized ischemia. Notice the discoloration representing muscle tissue death.");
+    }
+    else if (mode === 'valve') {
+      // Tachycardia compensation
+      this.bpm = 105;
+      this.speakNarration("Mitral valve disease simulation active. Compensating with a elevated heart rate of 105 beats per minute. Colored blood cells exhibit regurgitation and backflow inside the chambers.");
+    }
+    else if (mode === 'hypertrophy') {
+      // Thickened Left Ventricle wall
+      this.bpm = 88;
+      this.speakNarration("Cardiac Hypertrophy loaded. Left ventricular walls are pathologically enlarged and thickened to combat systemic resistance, leading to decreased chamber volume.");
+    }
+
+    if (bpmSlider && bpmVal) {
+      bpmSlider.value = this.bpm;
+      bpmVal.textContent = `${this.bpm} BPM`;
+    }
+  }
+
+  speakNarration(text) {
+    if (this.voiceEngine) {
+      this.voiceEngine.speak(text);
+    }
+  }
+
+  // Create a 3D Canvas-textured UI panel inside VR space
+  createVRInfoPanel() {
+    if (this.vrInfoPanel) {
+      this.scene.remove(this.vrInfoPanel);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 384;
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      depthTest: true
+    });
+
+    const geometry = new THREE.PlaneGeometry(1.2, 0.9);
+    this.vrInfoPanel = new THREE.Mesh(geometry, material);
+    this.vrInfoPanel.name = "vr_info_panel";
+
+    // Position panel floating to the right of the heart at chest level
+    this.vrInfoPanel.position.set(0.9, 0.65, -0.6);
+    this.vrInfoPanel.rotation.set(0, -Math.PI / 6, 0); // tilt towards center
+    this.vrInfoPanel.visible = false;
+
+    this.scene.add(this.vrInfoPanel);
+  }
+
+  // Redraws the 3D VR Panel with medical data or Quiz details
+  updateVRInfoPanel(nameId) {
+    if (!this.vrInfoPanel) this.createVRInfoPanel();
+    if (!nameId || !HeartData[nameId]) {
+      this.vrInfoPanel.visible = false;
+      return;
+    }
+
+    const data = HeartData[nameId];
+    const canvas = this.vrInfoPanel.material.map.image;
+    const ctx = canvas.getContext('2d');
+
+    // Background Panel Paint
+    ctx.fillStyle = 'rgba(10, 18, 30, 0.95)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+
+    // Title
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 26px Outfit, Arial, sans-serif';
+    ctx.fillText(data.name, 30, 45);
+
+    // Close Button Box (top right)
+    ctx.fillStyle = 'rgba(255, 77, 77, 0.15)';
+    ctx.strokeStyle = '#ff4d4d';
+    ctx.lineWidth = 2;
+    ctx.fillRect(410, 18, 72, 28);
+    ctx.strokeRect(410, 18, 72, 28);
+
+    ctx.fillStyle = '#ff4d4d';
+    ctx.font = 'bold 13px Outfit, sans-serif';
+    ctx.fillText('CLOSE [X]', 417, 36);
+
+    // Divider Line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(30, 65);
+    ctx.lineTo(canvas.width - 30, 65);
+    ctx.stroke();
+
+    // Helper text-wrap function
+    const wrapText = (text, x, y, maxWidth, lineHeight) => {
+      ctx.font = '16px sans-serif';
+      ctx.fillStyle = '#e2e8f0';
+      const words = text.split(' ');
+      let line = '';
+      for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        let metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          ctx.fillText(line, x, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, x, y);
+      return y + lineHeight;
+    };
+
+    let startY = 95;
+    ctx.fillStyle = '#a855f7'; // purple header
+    ctx.font = 'bold 16px Outfit, sans-serif';
+    ctx.fillText('ANATOMICAL FUNCTION', 30, startY);
+    startY = wrapText(data.function, 30, startY + 22, canvas.width - 60, 20) + 10;
+
+    ctx.fillStyle = '#a855f7';
+    ctx.font = 'bold 16px Outfit, sans-serif';
+    ctx.fillText('CLINICAL SIGNIFICANCE', 30, startY);
+    startY = wrapText(data.clinical, 30, startY + 22, canvas.width - 60, 20) + 10;
+
+    ctx.fillStyle = '#a855f7';
+    ctx.font = 'bold 16px Outfit, sans-serif';
+    ctx.fillText('BLOOD FLOW DESCRIPTION', 30, startY);
+    wrapText(data.explanation, 30, startY + 22, canvas.width - 60, 20);
+
+    // Update texture map and make visible in VR modes
+    this.vrInfoPanel.material.map.needsUpdate = true;
+    this.vrInfoPanel.visible = (this.appMode !== 'desktop');
+  }
+
+  // Create a 3D Canvas-textured Simulation Control Panel inside VR space
+  createVRControlPanel() {
+    if (this.vrControlPanel) {
+      this.scene.remove(this.vrControlPanel);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 384;
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      depthTest: true
+    });
+
+    const geometry = new THREE.PlaneGeometry(1.2, 0.9);
+    this.vrControlPanel = new THREE.Mesh(geometry, material);
+    this.vrControlPanel.name = "vr_control_panel";
+
+    // Float to the left of the heart at chest level (opposite to vrInfoPanel)
+    this.vrControlPanel.position.set(-0.9, 0.65, -0.6);
+    this.vrControlPanel.rotation.set(0, Math.PI / 6, 0); // tilt towards center
+    this.vrControlPanel.visible = false;
+
+    this.scene.add(this.vrControlPanel);
+  }
+
+  // Redraws the 3D VR Control Panel with current toggled statuses
+  updateVRControlPanel() {
+    if (!this.vrControlPanel) this.createVRControlPanel();
+
+    const canvas = this.vrControlPanel.material.map.image;
+    const ctx = canvas.getContext('2d');
+
+    // Background Panel Paint
+    ctx.fillStyle = 'rgba(10, 18, 30, 0.95)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#a855f7'; // Purple border
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+
+    // Title
+    ctx.fillStyle = '#a855f7';
+    ctx.font = 'bold 24px Outfit, Arial, sans-serif';
+    ctx.fillText('Simulation Controls', 30, 45);
+
+    // Divider Line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(30, 60);
+    ctx.lineTo(canvas.width - 30, 60);
+    ctx.stroke();
+
+    // Helper to draw a button
+    const drawButton = (text, x, y, w, h, isActive) => {
+      ctx.fillStyle = isActive ? 'rgba(0, 240, 255, 0.18)' : 'rgba(255, 255, 255, 0.05)';
+      ctx.strokeStyle = isActive ? '#00f0ff' : 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 3;
+      
+      // Draw rounded rect
+      const r = 10;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw text
+      ctx.fillStyle = isActive ? '#00f0ff' : '#cbd5e1';
+      ctx.font = 'bold 15px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x + w / 2, y + h / 2);
+    };
+
+    // Row 1
+    drawButton(this.isBeating ? 'Heartbeat: ON' : 'Heartbeat: OFF', 40, 90, 200, 50, this.isBeating);
+    drawButton(this.isFlowing ? 'Blood Flow: ON' : 'Blood Flow: OFF', 272, 90, 200, 50, this.isFlowing);
+
+    // Row 2
+    drawButton(this.isTransparency ? 'Transparency: ON' : 'Transparency: OFF', 40, 160, 200, 50, this.isTransparency);
+    drawButton(this.isExploded ? 'Exploded View: ON' : 'Exploded View: OFF', 272, 160, 200, 50, this.isExploded);
+
+    // Row 3 (Reset)
+    drawButton('Reset Scene Space', 156, 240, 200, 50, false);
+
+    this.vrControlPanel.material.map.needsUpdate = true;
+    this.vrControlPanel.visible = (this.appMode !== 'desktop');
+  }
+
+  // Handle raycast click on specific control panel coordinate options
+  handleVRControlClick(x, y) {
+    let toggled = false;
+    let descriptionText = "";
+    let titleText = "";
+
+    if (x >= 40 && x <= 240 && y >= 90 && y <= 140) {
+      const newState = !this.isBeating;
+      this.isBeating = newState;
+      // Sync DOM
+      const beatSwitch = document.getElementById('switch-beat');
+      if (beatSwitch) beatSwitch.checked = newState;
+      
+      toggled = true;
+      titleText = "Heartbeat Animation";
+      descriptionText = newState 
+        ? "Heartbeat animation is now ACTIVE. The chambers contract and expand realistically simulating a cardiac cycle at the specified BPM rate."
+        : "Heartbeat animation has been PAUSED. The heart is in a static diastolic state, allowing close physical study of stationary structural relationships.";
+    }
+    else if (x >= 272 && x <= 472 && y >= 90 && y <= 140) {
+      const newState = !this.isFlowing;
+      this.isFlowing = newState;
+      const flowSwitch = document.getElementById('switch-flow');
+      if (flowSwitch) flowSwitch.checked = newState;
+
+      toggled = true;
+      titleText = "Blood Flow Particle System";
+      descriptionText = newState
+        ? "Blood Flow particle visualization is now ACTIVE. Crimson oxygenated cells and deep blue deoxygenated cells track directional flows inside the ventricles and vessels."
+        : "Blood Flow particle system is now DISABLED. All active micro-particles are hidden to allow an unobstructed view of internal muscular and tissue walls.";
+    }
+    else if (x >= 40 && x <= 240 && y >= 160 && y <= 210) {
+      const newState = !this.isTransparency;
+      this.setTransparencyMode(newState);
+      const transSwitch = document.getElementById('switch-transparency');
+      if (transSwitch) transSwitch.checked = newState;
+
+      toggled = true;
+      titleText = "Transparency Mode";
+      descriptionText = newState
+        ? "Transparency mode is now ACTIVE. Outer muscular tissue becomes translucent, revealing the internal chambers, valves, and blood flow paths in real-time."
+        : "Transparency mode is now DISABLED. Fully opaque muscular walls are restored, showing the external vascular structures and fat layers of the heart.";
+    }
+    else if (x >= 272 && x <= 472 && y >= 160 && y <= 210) {
+      const newState = !this.isExploded;
+      this.setExplodedMode(newState);
+      const explodedSwitch = document.getElementById('switch-exploded');
+      if (explodedSwitch) explodedSwitch.checked = newState;
+
+      toggled = true;
+      titleText = "Exploded View Mode";
+      descriptionText = newState
+        ? "Exploded View is now ACTIVE. Key anatomical sections (ventricles, atria, aorta, etc.) expand outwards along offset vectors to show spatial assembly details."
+        : "Exploded View is now DISABLED. All sections translate back to their original integrated positions to display the fully assembled anatomical structure.";
+    }
+    else if (x >= 156 && x <= 356 && y >= 240 && y <= 290) {
+      this.resetScene();
+      const rotSlider = document.getElementById('slider-rotation-speed');
+      if (rotSlider) rotSlider.value = 0.0;
+      const transSwitch = document.getElementById('switch-transparency');
+      if (transSwitch) transSwitch.checked = false;
+      const explodedSwitch = document.getElementById('switch-exploded');
+      if (explodedSwitch) explodedSwitch.checked = false;
+
+      toggled = true;
+      titleText = "System Reset Space";
+      descriptionText = "All simulation parameters (heartbeat, blood flow, cross sections, scales, rotations, positions, and offsets) have been reset to factory defaults.";
+    }
+
+    if (toggled) {
+      // Pulse animation: expand the heart scale slightly and shrink it back to give mechanical feedback
+      if (this.heartGroup) {
+        const baseScale = this.heartGroup.scale.x; // dynamically query current scale factor
+        this.heartGroup.scale.setScalar(baseScale * 1.22);
+        let elapsed = 0;
+        const interval = setInterval(() => {
+          elapsed += 16;
+          const factor = elapsed / 250;
+          if (factor >= 1.0) {
+            this.heartGroup.scale.setScalar(baseScale);
+            clearInterval(interval);
+          } else {
+            // Lerp scale back to baseScale
+            const current = (baseScale * 1.22) * (1.0 - factor) + baseScale * factor;
+            this.heartGroup.scale.setScalar(current);
+          }
+        }, 16);
+      }
+
+      this.updateVRControlPanel();
+      this.showVRSimulationInfo(titleText, descriptionText);
+    }
+  }
+
+  // Draw simulation function description onto the VR Info Panel
+  showVRSimulationInfo(titleText, descriptionText) {
+    if (!this.vrInfoPanel) this.createVRInfoPanel();
+
+    const canvas = this.vrInfoPanel.material.map.image;
+    const ctx = canvas.getContext('2d');
+
+    // Background Paint
+    ctx.fillStyle = 'rgba(10, 18, 30, 0.95)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+
+    // Title
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 26px Outfit, Arial, sans-serif';
+    ctx.fillText(titleText, 30, 45);
+
+    // Close Button Box
+    ctx.fillStyle = 'rgba(255, 77, 77, 0.15)';
+    ctx.strokeStyle = '#ff4d4d';
+    ctx.lineWidth = 2;
+    ctx.fillRect(410, 18, 72, 28);
+    ctx.strokeRect(410, 18, 72, 28);
+
+    ctx.fillStyle = '#ff4d4d';
+    ctx.font = 'bold 13px Outfit, sans-serif';
+    ctx.fillText('CLOSE [X]', 417, 36);
+
+    // Divider Line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(30, 65);
+    ctx.lineTo(canvas.width - 30, 65);
+    ctx.stroke();
+
+    const wrapText = (text, x, y, maxWidth, lineHeight) => {
+      ctx.font = '16px sans-serif';
+      ctx.fillStyle = '#e2e8f0';
+      const words = text.split(' ');
+      let line = '';
+      for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        let metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          ctx.fillText(line, x, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, x, y);
+    };
+
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 16px Outfit, sans-serif';
+    ctx.fillText('SIMULATION STATUS', 30, 95);
+    wrapText(descriptionText, 30, 120, canvas.width - 60, 22);
+
+    if (this.voiceEngine) {
+      this.voiceEngine.speak(`${titleText}. ${descriptionText}`);
+    }
+
+    this.vrInfoPanel.material.map.needsUpdate = true;
+    this.vrInfoPanel.visible = true;
   }
 }

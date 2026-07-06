@@ -646,6 +646,43 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   display: none;
 }
 
+/* Anatomical Reference Image */
+.info-image-container {
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-neon);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+  margin-bottom: 5px;
+  background: #03070d;
+}
+
+.info-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.info-image:hover {
+  transform: scale(1.05);
+}
+
+/* Download Section */
+.download-section {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.download-btn {
+  flex: 1;
+  padding: 10px !important;
+  font-size: 0.85rem !important;
+  border-radius: 8px !important;
+}
+
 .info-header-container {
   display: flex;
   justify-content: space-between;
@@ -1297,4 +1334,49 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   --border-neon-active: rgba(0, 136, 255, 0.9);
   --color-primary: #0088ff; /* Vivid blue theme for MR */
   --shadow-neon: 0 0 15px rgba(0, 136, 255, 0.25);
+}
+
+.disease-select:focus {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-neon);
+}
+
+/* Hide standard 2D HUD when in active immersive VR mode to prevent screen clipping in stereo rendering */
+.xr-vr-active .hud-sidebar,
+.xr-vr-active .hud-top-bar,
+.xr-vr-active .hud-bottom-nav,
+.xr-vr-active .mode-banner,
+.xr-vr-active .modal-overlay,
+.xr-vr-active .ar-instructions {
+  display: none !important;
+}
+
+/* Ensure WebXR canvas transparency is visible over HTML layouts */
+body.xr-ar-active,
+body.xr-vr-active {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+body.xr-ar-active #canvas-container,
+body.xr-vr-active #canvas-container,
+body.xr-ar-active canvas,
+body.xr-vr-active canvas {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Hide Zappar WebXR polyfill default launch/UI button (the blue click button) */
+#zappar-button,
+#zappar-ui,
+.zappar-button,
+.zappar-ui,
+[id*="zappar-button"],
+[class*="zappar-button"],
+[id*="zappar-ui"],
+[class*="zappar-ui"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }

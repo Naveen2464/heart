@@ -5,6 +5,8 @@ export class VoiceEngine {
     this.isListening = false;
     this.speechActive = false;
     this.syntheticVoice = null;
+    this.currentUtterance = null; // Stored to prevent garbage collection
+    this.speakTimeout = null; // Stored to queue speak after cancel
     
     // Callbacks to UI
     this.onSpeechStart = null;
@@ -137,39 +139,69 @@ export class VoiceEngine {
   speak(text, onEndCallback = null) {
     if (!window.speechSynthesis) return;
 
+    if (this.speakTimeout) {
+      clearTimeout(this.speakTimeout);
+      this.speakTimeout = null;
+    }
+
     this.stopSpeaking();
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (this.syntheticVoice) {
-      utterance.voice = this.syntheticVoice;
+    const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+
+    const performSpeak = () => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      this.currentUtterance = utterance; // Prevent garbage collection
+
+      if (this.syntheticVoice) {
+        utterance.voice = this.syntheticVoice;
+      }
+      
+      // Adjust speech rate & pitch for medical professional tone
+      utterance.rate = 0.95; 
+      utterance.pitch = 1.0;
+
+      utterance.onstart = () => {
+        this.speechActive = true;
+      };
+
+      utterance.onend = () => {
+        if (this.currentUtterance === utterance) {
+          this.speechActive = false;
+          this.currentUtterance = null;
+        }
+        if (onEndCallback) onEndCallback();
+      };
+
+      utterance.onerror = (err) => {
+        if (err.error !== 'interrupted') {
+          console.error("Speech Synthesis error: ", err);
+        }
+        if (this.currentUtterance === utterance) {
+          this.speechActive = false;
+          this.currentUtterance = null;
+        }
+        if (onEndCallback) onEndCallback();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    };
+
+    if (isMobile) {
+      performSpeak();
+    } else {
+      this.speakTimeout = setTimeout(performSpeak, 150);
     }
-    
-    // Adjust speech rate & pitch for medical professional tone
-    utterance.rate = 0.95; 
-    utterance.pitch = 1.0;
-
-    utterance.onstart = () => {
-      this.speechActive = true;
-    };
-
-    utterance.onend = () => {
-      this.speechActive = false;
-      if (onEndCallback) onEndCallback();
-    };
-
-    utterance.onerror = (err) => {
-      console.error("Speech Synthesis error: ", err);
-      this.speechActive = false;
-      if (onEndCallback) onEndCallback();
-    };
-
-    window.speechSynthesis.speak(utterance);
   }
 
   stopSpeaking() {
+    if (this.speakTimeout) {
+      clearTimeout(this.speakTimeout);
+      this.speakTimeout = null;
+    }
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
       this.speechActive = false;
+      this.currentUtterance = null;
     }
   }
 
