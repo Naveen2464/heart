@@ -207,6 +207,20 @@ export class VRManager {
     skyDome.name = "sky_dome";
     this.vrEnvironment.add(skyDome);
 
+    // 7. Transparent Cylindrical Boundary Collider around platform (Radius = 4.0, height = 3.0)
+    const boundaryGeo = new THREE.CylinderGeometry(4.0, 4.0, 3.0, 32, 1, true);
+    const boundaryMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    this.boundaryCollider = new THREE.Mesh(boundaryGeo, boundaryMat);
+    this.boundaryCollider.name = "platform_boundary_collider";
+    this.boundaryCollider.position.y = floorY + 1.5;
+    this.vrEnvironment.add(this.boundaryCollider);
+
     // 6. Glowing star particles (microdust environment)
     const starGeo = new THREE.BufferGeometry();
     const starCount = 150;
@@ -257,6 +271,8 @@ export class VRManager {
           node.position.y = floorY + 4;
         } else if (node.name === 'star_particles') {
           node.position.y = floorY;
+        } else if (node.name === 'platform_boundary_collider') {
+          node.position.y = floorY + 1.5;
         }
       });
     }
@@ -293,6 +309,7 @@ export class VRManager {
 
       // Add laser pointer
       const laser = laserLine.clone();
+      laser.material = laserLine.material.clone(); // clone material to allow independent warning color shifts
       laser.visible = false; // Hide initially
       controller.add(laser);
 
@@ -404,6 +421,7 @@ export class VRManager {
 
   // Build ray from controller's 6DoF world matrix
   buildControllerRay(controller) {
+    if (!controller) return new THREE.Ray();
     const tempMatrix = new THREE.Matrix4();
     tempMatrix.identity().extractRotation(controller.matrixWorld);
     
@@ -474,9 +492,11 @@ export class VRManager {
 
   // Zapbox fires 'select' (complete press+release) — use for primary interaction
   onVRSelect(controller, controllerIndex, event) {
-    if (event && event.data && event.data.targetRayMode === 'screen') {
+    if (this.engine.hasDraggedInXR) {
+      this.engine.hasDraggedInXR = false;
       return;
     }
+
     // 1. Raycast against VR Info Panel first to handle Close [X] button clicks
     if (this.engine.vrInfoPanel && this.engine.vrInfoPanel.visible) {
       const ray = this.buildControllerRay(controller);
@@ -684,6 +704,8 @@ export class VRManager {
 
   // Two-controller pinch-to-scale update (called from animation loop)
   updateVRGrabs(delta) {
+    this.checkVRBoundaryCollisions(delta);
+
     if (this.activeGrabbers.length === 2 && this.engine.heartGroup) {
       const p1 = this.activeGrabbers[0].position;
       const p2 = this.activeGrabbers[1].position;
@@ -868,9 +890,11 @@ export class VRManager {
 
     if (!this.engine.heartGroup) return;
 
+
+
     for (let i = 0; i < this.controllers.length; i++) {
       const controller = this.controllers[i];
-      if (!this.controllerStates[i].connected) {
+      if (!controller || !this.controllerStates[i] || !this.controllerStates[i].connected) {
         if (this.hitMarkers[i]) this.hitMarkers[i].visible = false;
         continue;
       }
@@ -954,6 +978,71 @@ export class VRManager {
     } catch (e) {
       // Zapbox may not support haptics — silently ignore
       console.debug("VRManager: Haptic feedback not available.", e.message);
+    }
+  }
+
+  // Real-time cylindrical platform collision detection & clamping for rig and controllers
+  checkVRBoundaryCollisions(delta) {
+    const maxPlatformRadius = 4.0;
+    const maxRigRadius = 3.9;
+
+    // 1. Clamp player locomotion (Camera Rig) position to keep player on circular platform
+    if (this.cameraRig) {
+      const rigPos = this.cameraRig.position;
+      const rigDistXZ = Math.sqrt(rigPos.x * rigPos.x + rigPos.z * rigPos.z);
+      if (rigDistXZ > maxRigRadius) {
+        rigPos.x *= maxRigRadius / rigDistXZ;
+        rigPos.z *= maxRigRadius / rigDistXZ;
+      }
+    }
+
+    // 2. Prevent controllers / surgical tools from going outside the platform boundary
+    for (let i = 0; i < this.controllers.length; i++) {
+      const controller = this.controllers[i];
+      if (!controller || !this.controllerStates[i] || !this.controllerStates[i].connected) {
+        continue;
+      }
+
+      const worldPos = new THREE.Vector3();
+      controller.getWorldPosition(worldPos);
+
+      const distXZ = Math.sqrt(worldPos.x * worldPos.x + worldPos.z * worldPos.z);
+      const laser = controller.getObjectByName('laser');
+      const model = this.controllerModels[i];
+      const hitMarker = this.hitMarkers[i];
+
+      if (distXZ > maxPlatformRadius) {
+        // Collided with boundary! Play haptics and color pointer red
+        this.triggerVRHaptic(controller, 0.55, 30);
+
+        if (laser) {
+          laser.material.color.setHex(0xff0000);
+        }
+        if (hitMarker) {
+          hitMarker.material.color.setHex(0xff0000);
+        }
+
+        // Clamp the visual model local offset to stay exactly on the cylinder edge
+        if (model) {
+          const clampedWorldPos = worldPos.clone();
+          clampedWorldPos.x *= maxPlatformRadius / distXZ;
+          clampedWorldPos.z *= maxPlatformRadius / distXZ;
+
+          const localClamped = controller.worldToLocal(clampedWorldPos.clone());
+          model.position.copy(localClamped);
+        }
+      } else {
+        // Inside platform - restore default visual pointer colors and model position
+        if (laser) {
+          laser.material.color.setHex(0x00f0ff);
+        }
+        if (hitMarker) {
+          hitMarker.material.color.setHex(0x00f0ff);
+        }
+        if (model) {
+          model.position.set(0, 0, 0);
+        }
+      }
     }
   }
 }

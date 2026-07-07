@@ -22,7 +22,7 @@ export class ModelLoader {
         (gltf) => {
           console.log("ModelLoader: Skeleton GLB loaded successfully!");
           const loadedModel = gltf.scene;
-          
+
           // Cool glowing holographic-like bone material
           const skeletonBoneMat = new THREE.MeshStandardMaterial({
             color: 0x80b3ff,
@@ -32,7 +32,7 @@ export class ModelLoader {
             opacity: 0.28,
             side: THREE.DoubleSide
           });
-          
+
           loadedModel.traverse((node) => {
             if (node.isMesh) {
               node.castShadow = true;
@@ -40,32 +40,32 @@ export class ModelLoader {
               node.material = skeletonBoneMat;
             }
           });
-          
+
           const origBox = new THREE.Box3().setFromObject(loadedModel);
           const origSize = origBox.getSize(new THREE.Vector3());
-          
+
           const desiredHeight = 2.0;
           const scaleFactor = desiredHeight / (origSize.y || 1);
           loadedModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
-          
+
           loadedModel.position.set(0, 0, 0);
           loadedModel.updateMatrixWorld(true);
           const scaledBox = new THREE.Box3().setFromObject(loadedModel);
           const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
           const scaledMin = scaledBox.min;
-          
+
           const wrapperGroup = new THREE.Group();
           wrapperGroup.name = "skeleton_model";
           wrapperGroup.add(loadedModel);
-          
+
           loadedModel.position.set(
             -scaledCenter.x,
             -scaledMin.y,
             -scaledCenter.z
           );
-          
+
           wrapperGroup.position.set(0, 0, 0);
-          
+
           resolve(wrapperGroup);
         },
         (xhr) => {
@@ -92,19 +92,19 @@ export class ModelLoader {
     return new Promise((resolve) => {
       const path = 'assets/models/realistic_human_heart.glb';
       console.log(`ModelLoader: Attempting to load realistic human heart GLB: ${path}`);
-      
+
       this.loader.load(
         path,
         (gltf) => {
           console.log("ModelLoader: Realistic heart GLB loaded successfully!");
           const loadedModel = gltf.scene;
-          
+
           // Traverse and assign materials and userData names
           loadedModel.traverse((node) => {
             if (node.isMesh) {
               node.castShadow = true;
               node.receiveShadow = true;
-              
+
               // Normalize names: map node name to closest anatomical ID
               const normalizedName = this.normalizeMeshName(node.name);
               if (normalizedName && materials[normalizedName]) {
@@ -127,7 +127,7 @@ export class ModelLoader {
                   nameId: 'left_ventricle'
                 };
               }
-              
+
               if (node.material) {
                 const mats = Array.isArray(node.material) ? node.material : [node.material];
                 mats.forEach(mat => {
@@ -143,24 +143,24 @@ export class ModelLoader {
               }
             }
           });
-          
+
           // Normalize scale of loaded model to a standard height of 1.6 units
           const heartBox = new THREE.Box3().setFromObject(loadedModel);
           const heartSize = heartBox.getSize(new THREE.Vector3());
-          const targetHeight = 1.6;
+          const targetHeight = 4.6;
           const scaleFactor = targetHeight / (heartSize.y || 1);
           loadedModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
-          
+
           // Center the loaded model's geometry
           loadedModel.updateMatrixWorld(true);
           const heartCenter = heartBox.getCenter(new THREE.Vector3());
           loadedModel.position.set(-heartCenter.x * scaleFactor, -heartCenter.y * scaleFactor + 0.2, -heartCenter.z * scaleFactor);
-          
+
           const wrapperGroup = new THREE.Group();
           wrapperGroup.name = "heart_model";
           wrapperGroup.userData = { isRealisticModel: true };
           wrapperGroup.add(loadedModel);
-          
+
           if (onProgress) onProgress(100);
           resolve(wrapperGroup);
         },
@@ -175,12 +175,12 @@ export class ModelLoader {
         (error) => {
           console.warn("ModelLoader: Failed to load realistic heart GLB. Falling back to procedural model.", error);
           const proceduralHeart = createProceduralHeart(materials);
-          
+
           proceduralHeart.traverse((node) => {
             if (node.isMesh) {
               node.castShadow = true;
               node.receiveShadow = true;
-              
+
               if (node.material) {
                 const mats = Array.isArray(node.material) ? node.material : [node.material];
                 mats.forEach(mat => {
@@ -196,7 +196,7 @@ export class ModelLoader {
               }
             }
           });
-          
+
           if (onProgress) onProgress(100);
           resolve(proceduralHeart);
         }
@@ -211,7 +211,7 @@ export class ModelLoader {
    */
   normalizeMeshName(name) {
     const lowerName = name.toLowerCase();
-    
+
     if (lowerName.includes('left_ventricle') || lowerName.includes('leftventricle') || lowerName === 'lv') {
       return 'left_ventricle';
     }
@@ -233,7 +233,7 @@ export class ModelLoader {
     if (lowerName.includes('vena_cava') || lowerName.includes('venacava') || lowerName === 'vc' || lowerName.includes('svc') || lowerName.includes('ivc')) {
       return 'vena_cava';
     }
-    
+
     return null;
   }
 }

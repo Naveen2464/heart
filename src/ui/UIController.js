@@ -126,7 +126,10 @@ export class UIController {
     if (diseaseSelect) {
       diseaseSelect.addEventListener('change', (e) => {
         this.engine.setDiseaseMode(e.target.value);
+        this.updateSubFlowTriggers(e.target.value);
       });
+      // Set initial dynamic sub-triggers state
+      this.updateSubFlowTriggers(diseaseSelect.value);
     }
   }
 
@@ -531,6 +534,75 @@ export class UIController {
           this.transitionToMode('vr', () => this.vrManager.startSession());
         }
       });
+    }
+  }
+
+  // Populate dynamic sub-trigger visual flows under selected anatomy function/condition
+  updateSubFlowTriggers(mode) {
+    const container = document.getElementById('sub-triggers-container');
+    const list = document.getElementById('sub-triggers-list');
+    if (!container || !list) return;
+
+    list.innerHTML = '';
+
+    const subTriggersMap = {
+      healthy: [
+        { id: 'sub-conduction', label: 'Conduction Path (SA/AV Nodes)', callback: (enabled) => this.engine.toggleElectricalConduction(enabled) },
+        { id: 'sub-efficiency', label: 'Optimal Output (BPM Boost)', callback: (enabled) => this.engine.toggleCardiacOutput(enabled) }
+      ],
+      infarction: [
+        { id: 'sub-blockage', label: 'Show LAD Blockage Ring', callback: (enabled) => this.engine.toggleArteryBlockage(enabled) },
+        { id: 'sub-arrhythmia', label: 'Trigger VFib (Arrhythmia)', callback: (enabled) => this.engine.toggleArrhythmia(enabled) }
+      ],
+      valve: [
+        { id: 'sub-calcification', label: 'Aortic Valve Calcification', callback: (enabled) => this.engine.toggleValveCalcification(enabled) },
+        { id: 'sub-regurgitation', label: 'Regurgitant Jet Backflow', callback: (enabled) => this.engine.toggleRegurgitantBackflow(enabled) }
+      ],
+      hypertrophy: [
+        { id: 'sub-septum', label: 'Septum Myocardium Expansion', callback: (enabled) => this.engine.toggleSeptumThickened(enabled) },
+        { id: 'sub-compliance', label: 'Stiff Diastolic Compliance', callback: (enabled) => this.engine.toggleDiastolicFilling(enabled) }
+      ]
+    };
+
+    const triggers = subTriggersMap[mode];
+    if (triggers && triggers.length > 0) {
+      container.style.display = 'block';
+      triggers.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'toggle-row';
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.style.marginTop = '10px';
+        
+        const label = document.createElement('label');
+        label.htmlFor = t.id;
+        label.textContent = t.label;
+        label.style.fontSize = '0.85rem';
+        label.style.fontWeight = '500';
+        label.style.color = 'var(--color-text-muted)';
+        
+        const toggleLabel = document.createElement('label');
+        toggleLabel.className = 'switch';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = t.id;
+        checkbox.addEventListener('change', (e) => {
+          t.callback(e.target.checked);
+        });
+        
+        const slider = document.createElement('span');
+        slider.className = 'slider round';
+        
+        toggleLabel.appendChild(checkbox);
+        toggleLabel.appendChild(slider);
+        row.appendChild(label);
+        row.appendChild(toggleLabel);
+        list.appendChild(row);
+      });
+    } else {
+      container.style.display = 'none';
     }
   }
 }

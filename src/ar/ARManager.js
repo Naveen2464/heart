@@ -10,6 +10,7 @@ export class ARManager {
     
     // Reticle (placement ring) for showing detected planes
     this.reticle = null;
+    this.hasHitPose = false;
     this.isPlaced = false;
     this.controller = null;
     this.onSelectCallback = null;
@@ -174,7 +175,7 @@ export class ARManager {
       // Listen for connection events to toggle laser pointer visibility
       this.onControllerConnected = (event) => {
         this.controllerConnected = true;
-        if (this.laserLine) this.laserLine.visible = true;
+        if (this.laserLine) this.laserLine.visible = false; // Hide laser pointer completely
         console.log("ARManager: Controller connected.");
       };
 
@@ -232,6 +233,13 @@ export class ARManager {
   }
 
   onARSelect(controller, event) {
+    if (this.engine.hasDraggedInXR) {
+      this.engine.hasDraggedInXR = false;
+      return;
+    }
+
+
+
     // 1. Raycast against VR Info Panel first to handle Close [X] button clicks
     if (this.engine.vrInfoPanel && this.engine.vrInfoPanel.visible) {
       const tempMatrix = new THREE.Matrix4();
@@ -378,7 +386,7 @@ export class ARManager {
 
   // Triggers when plane is clicked to place the heart
   onPlaceHeart() {
-    if (this.reticle && this.reticle.visible && !this.isPlaced) {
+    if (this.reticle && this.hasHitPose && !this.isPlaced) {
       this.isPlaced = true;
       
       // Extract position from reticle matrix
@@ -419,10 +427,12 @@ export class ARManager {
       const hit = hitTestResults[0];
       const pose = hit.getPose(refSpace);
       
-      this.reticle.visible = true;
+      this.reticle.visible = false; // Keep reticle invisible to remove blue click indicator
       this.reticle.matrix.fromArray(pose.transform.matrix);
+      this.hasHitPose = true;
     } else {
       this.reticle.visible = false;
+      this.hasHitPose = false;
     }
   }
 
@@ -495,6 +505,8 @@ export class ARManager {
       return;
     }
 
+
+
     const tempMatrix = new THREE.Matrix4();
     tempMatrix.identity().extractRotation(this.controller.matrixWorld);
 
@@ -509,7 +521,7 @@ export class ARManager {
       const intersectsInfo = this.engine.raycaster.intersectObject(this.engine.vrInfoPanel);
       if (intersectsInfo.length > 0) {
         this.hitMarker.position.copy(intersectsInfo[0].point);
-        this.hitMarker.visible = true;
+        this.hitMarker.visible = false; // Hide hit marker completely
         hitInfoPanel = true;
       }
     }
@@ -520,7 +532,7 @@ export class ARManager {
       const intersectsControl = this.engine.raycaster.intersectObject(this.engine.vrControlPanel);
       if (intersectsControl.length > 0) {
         this.hitMarker.position.copy(intersectsControl[0].point);
-        this.hitMarker.visible = true;
+        this.hitMarker.visible = false; // Hide hit marker completely
         hitControlPanel = true;
       }
     }
@@ -539,7 +551,7 @@ export class ARManager {
 
       if (hitSprite && this.engine.heartGroup.visible) {
         this.hitMarker.position.copy(hitSprite.point);
-        this.hitMarker.visible = true;
+        this.hitMarker.visible = false; // Hide hit marker completely
       } else {
         this.hitMarker.visible = false;
       }

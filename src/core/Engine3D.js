@@ -105,6 +105,7 @@ export class Engine3D {
       100
     );
     this.camera.position.set(0, 1.2, 5.5);
+    this.raycaster.camera = this.camera; // Ensure sprite raycasting does not throw null pointer errors
 
     // 3. Renderer with WebXR and Clipping support
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -637,11 +638,35 @@ export class Engine3D {
       }
 
       this.raycaster.setFromCamera(this.mouse, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.heartGroup.children, true);
+      
+      // Check raycast hits. If in skeleton mode, intersect against skeletonGroup as well to act as a chest collider.
+      let intersects = [];
+      if (this.visualizerMode === 'skeleton' && this.skeletonGroup) {
+        intersects = this.raycaster.intersectObjects([this.heartGroup, this.skeletonGroup], true);
+      } else {
+        intersects = this.raycaster.intersectObjects(this.heartGroup.children, true);
+      }
 
       if (intersects.length > 0) {
         let mesh = intersects[0].object;
         let nameId = null;
+
+        // Check if we hit the skeleton (in skeleton mode) to act as a chest collider
+        if (this.visualizerMode === 'skeleton' && this.skeletonGroup) {
+          let current = mesh;
+          let hitSkeleton = false;
+          while (current) {
+            if (current === this.skeletonGroup) {
+              hitSkeleton = true;
+              break;
+            }
+            current = current.parent;
+          }
+          if (hitSkeleton) {
+            this.setVisualizerMode('focused');
+            return;
+          }
+        }
 
         // Check if we hit a 3D Sprite label
         if (mesh.isSprite && mesh.userData && mesh.userData.nameId) {
@@ -1135,9 +1160,35 @@ export class Engine3D {
       }
     }
 
+    // Ensure base scale of heartGroup is correct for the active visualizer mode
+    if (this.heartGroup) {
+      if (this.isArrhythmia) {
+        // Chaotic fibrillation rhythm
+        const erraticScale = 1.0 + Math.sin(elapsedTime * 28.0) * 0.08 + Math.cos(elapsedTime * 14.0) * 0.04;
+        this.heartGroup.scale.setScalar(erraticScale);
+        this.bpm = 150;
+        const bpmVal = document.getElementById('pulse-rate-val');
+        const bpmSlider = document.getElementById('slider-pulse-rate');
+        if (bpmVal) bpmVal.textContent = "150 BPM (VFib)";
+        if (bpmSlider) bpmSlider.value = 150;
+      } else {
+        if (this.visualizerMode === 'skeleton') {
+          this.heartGroup.scale.set(0.04, 0.03, 0.04);
+        } else {
+          const isXR = this.renderer.xr.isPresenting || this.appMode === 'ar' || this.appMode === 'vr' || this.appMode === 'xr';
+          const s = isXR ? 0.6 : 1.1;
+          this.heartGroup.scale.setScalar(s);
+        }
+      }
+    }
+
     // 3. Heartbeat Animation Squeeze
     if (this.heartGroup && this.isBeating) {
-      const beatScaleVal = this.getHeartbeatScale(elapsedTime, this.bpm);
+
+      let beatScaleVal = this.getHeartbeatScale(elapsedTime, this.bpm);
+      if (this.isReducedCompliance) {
+        beatScaleVal *= 0.25; // stiff ventricles restrict dilation
+      }
       const isRealistic = this.heartGroup.userData && this.heartGroup.userData.isRealisticModel;
 
       this.heartGroup.traverse(node => {
@@ -1165,10 +1216,10 @@ export class Engine3D {
           let hypertrophyFactorX = 1.0;
           let hypertrophyFactorY = 1.0;
           let hypertrophyFactorZ = 1.0;
-          if (this.diseaseMode === 'hypertrophy' && (partName === 'left_ventricle' || isRealistic)) {
-            hypertrophyFactorX = 1.35;
-            hypertrophyFactorY = 1.15;
-            hypertrophyFactorZ = 1.35;
+          if ((this.diseaseMode === 'hypertrophy' || this.isSeptumThickened) && (partName === 'left_ventricle' || isRealistic)) {
+            hypertrophyFactorX = 1.45;
+            hypertrophyFactorY = 1.2;
+            hypertrophyFactorZ = 1.45;
           }
 
           node.scale.set(
@@ -1203,6 +1254,9 @@ export class Engine3D {
         // Erratically flow backwards/reflux (oscillates forward and backward)
         speedCoeff *= 0.5 * Math.sin(elapsedTime * 4.5);
       }
+      if (this.isRegurgitant) {
+        speedCoeff = -1.2 * Math.sin(elapsedTime * 6.0); // reverse flow
+      }
       updateBloodFlowParticles(this.particles, speedCoeff);
     }
 
@@ -1223,6 +1277,25 @@ export class Engine3D {
           }
         });
       }
+    }
+
+    // Pulse custom visuals
+    const conduction = this.scene.getObjectByName("conduction_visuals");
+    if (conduction) {
+      conduction.traverse(node => {
+        if (node.isMesh) {
+          node.scale.setScalar(1.0 + Math.sin(elapsedTime * 10) * 0.1);
+        }
+      });
+    }
+
+    const blockage = this.scene.getObjectByName("blockage_visuals");
+    if (blockage) {
+      blockage.traverse(node => {
+        if (node.isMesh) {
+          node.scale.setScalar(1.0 + Math.sin(elapsedTime * 12) * 0.15);
+        }
+      });
     }
 
     // 5. Update HTML Label coordinates projecting on screen
@@ -1727,5 +1800,125 @@ export class Engine3D {
 
     this.vrInfoPanel.material.map.needsUpdate = true;
     this.vrInfoPanel.visible = true;
+  }
+
+  // Interactive Sub-flow controllers
+  toggleElectricalConduction(enabled) {
+    this.showElectricalConduction = enabled;
+    if (!this.heartGroup) return;
+
+    if (this.conductionGroup) {
+      this.heartGroup.remove(this.conductionGroup);
+      this.conductionGroup = null;
+    }
+
+    if (enabled) {
+      this.conductionGroup = new THREE.Group();
+      this.conductionGroup.name = "conduction_visuals";
+
+      const saGeo = new THREE.SphereGeometry(0.04, 16, 16);
+      const nodeMat = new THREE.MeshBasicMaterial({ color: 0xffd700 }); // gold
+      const saNode = new THREE.Mesh(saGeo, nodeMat);
+      saNode.position.set(0.18, 0.25, 0.1);
+      this.conductionGroup.add(saNode);
+
+      const avNode = new THREE.Mesh(saGeo, nodeMat);
+      avNode.position.set(0.05, 0.1, 0.05);
+      this.conductionGroup.add(avNode);
+
+      const fiberGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0.18, 0.25, 0.1),
+        new THREE.Vector3(0.05, 0.1, 0.05)
+      ]);
+      const fiberMat = new THREE.LineBasicMaterial({ color: 0xffd700, linewidth: 2 });
+      const fiber = new THREE.Line(fiberGeo, fiberMat);
+      this.conductionGroup.add(fiber);
+
+      this.heartGroup.add(this.conductionGroup);
+    }
+  }
+
+  toggleCardiacOutput(enabled) {
+    this.isOptimalOutput = enabled;
+    if (enabled) {
+      this.bpm = 75;
+      const bpmVal = document.getElementById('pulse-rate-val');
+      const bpmSlider = document.getElementById('slider-pulse-rate');
+      if (bpmVal) bpmVal.textContent = "75 BPM (Optimal)";
+      if (bpmSlider) bpmSlider.value = 75;
+    }
+  }
+
+  toggleArteryBlockage(enabled) {
+    this.showArteryBlockage = enabled;
+    if (!this.heartGroup) return;
+
+    if (this.blockageGroup) {
+      this.heartGroup.remove(this.blockageGroup);
+      this.blockageGroup = null;
+    }
+
+    if (enabled) {
+      this.blockageGroup = new THREE.Group();
+      this.blockageGroup.name = "blockage_visuals";
+
+      const ringGeo = new THREE.RingGeometry(0.03, 0.04, 32);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.set(0.15, 0.05, 0.25);
+      this.blockageGroup.add(ring);
+
+      const sphereGeo = new THREE.SphereGeometry(0.02, 16, 16);
+      const sphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0xff3333 }));
+      sphere.position.set(0.15, 0.05, 0.25);
+      this.blockageGroup.add(sphere);
+
+      this.heartGroup.add(this.blockageGroup);
+    }
+  }
+
+  toggleArrhythmia(enabled) {
+    this.isArrhythmia = enabled;
+    if (!enabled) {
+      this.bpm = 72;
+      const bpmVal = document.getElementById('pulse-rate-val');
+      const bpmSlider = document.getElementById('slider-pulse-rate');
+      if (bpmVal) bpmVal.textContent = "72 BPM";
+      if (bpmSlider) bpmSlider.value = 72;
+    }
+  }
+
+  toggleValveCalcification(enabled) {
+    this.isValveCalcified = enabled;
+    if (!this.heartGroup) return;
+    this.heartGroup.traverse(node => {
+      if (node.isMesh && node.userData && (node.userData.nameId === 'aorta' || node.userData.nameId === 'left_ventricle')) {
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(mat => {
+          if (mat && mat.color) {
+            if (enabled) {
+              mat.color.setHex(0xf1f5f9); // chalky calcified white
+            } else {
+              const od = mat.userData;
+              if (od && od.originalColor !== undefined) {
+                mat.color.setHex(od.originalColor);
+              }
+            }
+          }
+        });
+      }
+    });
+  }
+
+  toggleRegurgitantBackflow(enabled) {
+    this.isRegurgitant = enabled;
+  }
+
+  toggleSeptumThickened(enabled) {
+    this.isSeptumThickened = enabled;
+  }
+
+  toggleDiastolicFilling(enabled) {
+    this.isReducedCompliance = enabled;
   }
 }
