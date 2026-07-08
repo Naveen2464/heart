@@ -12,13 +12,15 @@ MediXR is a premium, interactive WebXR medical education application designed to
 *   **Dynamic HUD Sidebars:** Sleek, glassmorphism panel interfaces showing medical details, cross-sections, and scene controls.
 
 ### 📱 2. Augmented Reality (AR) Explorer
-*   **Scan & Tap Placement:** Leverages the device's camera feed to map the surrounding room and anchors the 3D heart onto horizontal surfaces (floors, tables).
+*   **Scan & Tap Placement:** Leverages the device's camera feed to map the surrounding room and anchors the 3D heart onto horizontal surfaces (floors, tables). Includes immediate placement coordinate fail-safes.
 *   **Interactive Mobile HUD:** Clean viewport layout optimized for touch gestures.
+*   **Pulsing Presenting Indicators:** Smooth breathing neon pulse overlays on buttons and panels during active sessions.
 
 ### 🥽 3. Virtual Reality (VR) Laboratory
 *   **Immersive Lab Space:** Teleport onto a professional room-scale platform with floor grids and spatial UI elements.
 *   **Laser Pointer Controllers:** Point and select individual anatomical structures in real-time.
 *   **Grab & Inspect:** Clutches the heart in 3D space to inspect internal and external structures up close.
+*   **Pulsing Active States:** Dynamic breathing neon-glow indicators tracking headset presentation status.
 
 ### 🔄 4. Advanced Simulation Modes
 *   **Heartbeat & Pulse Control:** Procedural cardiac animations with adjustable beats per minute (BPM) from 40 to 180.
@@ -46,45 +48,56 @@ The project has a modular, clean ES6 architecture structure:
 ```
 webxr_PROJECT/
 │
-├── index.html                  # Main application structure, layouts & CDN scripts
-├── server.js                   # Node.js developer server (HTTP + Local HTTPS)
-├── package.json                # Project script commands and metadata
-├── realistic_human_heart.glb   # Medically accurate 3D heart model asset
-├── favicon.ico                 # App favicon icon
+├── index.html                     # Main HTML application layout, CDNs, and UI overlays
+├── server.js                      # Custom HTTP/HTTPS Node.js dev server with auto-SSL
+├── package.json                   # Project scripts and package configuration metadata
+├── realistic_human_heart.glb      # Root medically accurate GLB 3D heart model file
+├── favicon.ico                    # Browser favicon icon
 │
-├── certs/                      # SSL Certificates for local HTTPS testing
-│   ├── generate.ps1            # PowerShell certificate generator script
-│   └── server.pfx              # Self-signed SSL Certificate
+├── certs/                         # SSL Certificate files for local HTTPS testing
+│   ├── generate.ps1               # PowerShell SSL generator command script
+│   └── server.pfx                 # Generated PKCS#12 SSL/TLS Certificate archive
 │
-├── assets/                     # Diagnostic reference diagrams and textures
+├── assets/                        # Shared project assets (diagrams, 3D GLTF models)
+│   ├── images/                    # Anatomical reference diagram overlays
+│   │   ├── aorta.png              # Aorta clinical reference image diagram
+│   │   ├── atrium.png             # Atria clinical reference image diagram
+│   │   ├── pulmonary_artery.png   # Pulmonary artery clinical reference image
+│   │   ├── vena_cava.png          # Vena Cava clinical reference image diagram
+│   │   └── ventricle.png          # Ventricles clinical reference image diagram
+│   │
+│   └── models/                    # Subfolder containing 3D GLTF model files
+│       ├── README.md              # Model documentation notes
+│       ├── realistic_human_heart.glb # Main heart model copy inside assets
+│       └── skeleton.glb           # Chest ribcage skeleton context model
 │
-├── styles/
-│   └── main.css                # Premium Glassmorphic UI & responsiveness stylesheet
+├── styles/                        # Style assets folder
+│   └── main.css                   # Main Glassmorphic Dark UI & layout stylesheet
 │
-└── src/
-    ├── core/
-    │   ├── App.js              # Application coordinator and session lifecycle manager
-    │   ├── Engine3D.js         # Core Three.js render loop, lights, controls, and scene
-    │   └── ModelLoader.js      # Handles GLB downloads, fallbacks, and physical materials
+└── src/                           # Modular application source code directory
+    ├── ar/                        # Augmented Reality (AR) scripts
+    │   └── ARManager.js           # AR session events, hit testing, and floor placement
     │
-    ├── ar/
-    │   └── ARManager.js        # Handles AR sessions, hit testing, and floor anchoring
+    ├── vr/                        # Virtual Reality (VR) scripts
+    │   └── VRManager.js           # VR room setup, 6DoF controller rays, and grab physics
     │
-    ├── vr/
-    │   └── VRManager.js        # Handles VR rooms, controller lasers, and grab physics
+    ├── core/                      # Application core engine modules
+    │   ├── App.js                 # App coordinator, entry, and WebXR session listener
+    │   ├── Engine3D.js            # Core Three.js render loop, lights, and simulated modes
+    │   └── ModelLoader.js         # Model importer, progress tracker, and PBR materials
     │
-    ├── ui/
-    │   ├── UIController.js     # Links DOM events, sliders, overlay HUDs, and panels
-    │   └── Accessibility.js    # Updates theme contrasts, large text, and screen reader announcements
+    ├── ui/                        # User interface modules
+    │   ├── UIController.js        # Event binder for HUD, panels, sliders, and buttons
+    │   └── Accessibility.js       # accessibility features, high contrast, and screen readers
     │
-    ├── voice/
-    │   └── VoiceEngine.js      # Handles Speech-To-Text commands and Text-To-Speech synthesis
+    ├── voice/                     # Voice recognition and synthesis
+    │   └── VoiceEngine.js         # Speech commands listener and medical text TTS reader
     │
-    └── utils/
-        ├── HeartData.js        # Medical library: explanations and pathology details
-        ├── HeartGeometry.js    # Procedural meshes (fallback when GLB fails)
-        ├── ShaderMaterials.js  # Custom shaders for flow, pulse, slice, and ischemic effects
-        └── SkeletonGeometry.js # Background procedural skeletal mesh helpers
+    └── utils/                     # Utility services and geometry generators
+        ├── HeartData.js           # Detailed medical descriptions & pathology conditions database
+        ├── HeartGeometry.js       # Procedural heart chambers (fallback geometry generator)
+        ├── ShaderMaterials.js     # Custom WebGL shaders (blood flows, heartbeat contraction)
+        └── SkeletonGeometry.js    # Procedural skeleton (fallback geometry generator)
 ```
 
 ---
@@ -108,6 +121,11 @@ This starts the **MediXR Development Server** on two ports simultaneously:
 *   🔒 **HTTPS:** `https://localhost:8443` — **Required** for mobile AR and VR WebXR cameras.
 
 The terminal will automatically output your local network IPs (e.g. `https://192.168.1.15:8443`). Use this network URL to open the app on your smartphone or VR headset.
+
+### ⚡ Direct Zapbox Launch Mode
+To maximize immersive flow, the loader is configured with **Direct Entry Actions** once assets are fully initialized:
+*   **"Enter Zapbox VR Lab"** — Instantly transitions the engine into standard WebXR immersive VR presentation mode. Tapping this button satisfies the browser gesture requirement, launching the headset camera streams and 6DoF controller handlers immediately.
+*   **"Explore in Desktop 3D Mode"** — Dismisses the loader and lets you explore the default desktop simulation with mouse controls.
 
 ---
 

@@ -71,7 +71,10 @@ export class ARManager {
 
       if (hudLayer) {
         this.beforeXRSelectHandler = (ev) => {
-          ev.preventDefault();
+          // Prevent standard UI elements from triggering WebXR select events
+          if (ev.target !== hudLayer) {
+            ev.preventDefault();
+          }
         };
         hudLayer.addEventListener('beforexrselect', this.beforeXRSelectHandler);
       }
@@ -215,18 +218,8 @@ export class ARManager {
   }
 
   createReticle() {
-    // A simple glowing ring to represent plane placement target
-    const ringGeo = new THREE.RingGeometry(0.12, 0.15, 32);
-    ringGeo.rotateX(-Math.PI / 2); // align horizontal with ground
-    
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.8
-    });
-    
-    this.reticle = new THREE.Mesh(ringGeo, ringMat);
+    // Create an invisible dummy object to satisfy matrix updates without rendering a blue ring
+    this.reticle = new THREE.Object3D();
     this.reticle.matrixAutoUpdate = false;
     this.reticle.visible = false;
     this.engine.scene.add(this.reticle);
@@ -386,29 +379,38 @@ export class ARManager {
 
   // Triggers when plane is clicked to place the heart
   onPlaceHeart() {
-    if (this.reticle && this.hasHitPose && !this.isPlaced) {
-      this.isPlaced = true;
-      
-      // Extract position from reticle matrix
-      const position = new THREE.Vector3();
+    if (this.isPlaced) return;
+    this.isPlaced = true;
+    
+    // Determine position: use hit pose if resolved, otherwise fallback to comfortable viewer distance
+    const position = new THREE.Vector3();
+    if (this.reticle && this.hasHitPose) {
       position.setFromMatrixPosition(this.reticle.matrix);
-      
-      if (this.engine.heartGroup) {
-        this.engine.heartGroup.position.copy(position);
-        this.engine.heartGroup.position.y += 0.3; // float slightly above target
-        this.engine.heartGroup.visible = true;
-        console.log("ARManager: Heart placed in physical environment at ", position);
-      }
-      
-      // Remove reticle
+      position.y += 0.3; // float slightly above target
+    } else {
+      // Fallback: place in front of camera
+      const refSpace = this.engine.renderer.xr.getReferenceSpace();
+      const isFloorSpace = !!(refSpace && refSpace.constructor && refSpace.constructor.name.includes('Floor'));
+      const defaultY = isFloorSpace ? 1.2 : 0.0;
+      position.set(0, defaultY, -1.2);
+    }
+    
+    if (this.engine.heartGroup) {
+      this.engine.heartGroup.position.copy(position);
+      this.engine.heartGroup.visible = true;
+      console.log("ARManager: Heart placed in physical environment at ", position);
+    }
+    
+    // Remove reticle
+    if (this.reticle) {
       this.engine.scene.remove(this.reticle);
       this.reticle = null;
+    }
 
-      // Hide AR placement instructions helper
-      const instr = document.getElementById('ar-instructions');
-      if (instr) {
-        instr.style.display = 'none';
-      }
+    // Hide AR placement instructions helper
+    const instr = document.getElementById('ar-instructions');
+    if (instr) {
+      instr.style.display = 'none';
     }
   }
 

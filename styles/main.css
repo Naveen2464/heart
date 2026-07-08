@@ -1366,7 +1366,7 @@ body.xr-vr-active canvas {
   background-color: transparent !important;
 }
 
-/* Hide Zappar WebXR polyfill default launch/UI button (the blue click button) */
+/* Hide Zappar WebXR polyfill default launch/UI buttons and tap indicators (blue ring click) */
 #zappar-button,
 #zappar-ui,
 .zappar-button,
@@ -1374,9 +1374,95 @@ body.xr-vr-active canvas {
 [id*="zappar-button"],
 [class*="zappar-button"],
 [id*="zappar-ui"],
-[class*="zappar-ui"] {
+[class*="zappar-ui"],
+[id*="zappar-placement"],
+[class*="zappar-placement"],
+[id*="zappar_placement"],
+[class*="zappar_placement"],
+[class*="zappar"] svg,
+[id*="zappar"] svg,
+div[class*="zappar-dialog"],
+div[id*="zappar-dialog"],
+svg[class*="zappar"],
+svg[id*="zappar"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+/* Ensure HUD overlays are stacked on top of Zappar canvas in AR and VR modes to receive clicks */
+body.xr-ar-active .hud-layer,
+body.xr-vr-active .hud-layer {
+  z-index: 2147483647 !important;
+}
+
+/* Futuristic pulsing glow animations for AR and VR presenting modes */
+@keyframes xrActivePulse {
+  0% {
+    box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+    border-color: rgba(0, 240, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(0, 240, 255, 0.8), 0 0 8px rgba(0, 240, 255, 0.4);
+    border-color: rgba(0, 240, 255, 0.9);
+  }
+  100% {
+    box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+    border-color: rgba(0, 240, 255, 0.4);
+  }
+}
+
+.xr-btn.active {
+  animation: xrActivePulse 2s infinite ease-in-out !important;
+}
+
+@keyframes bannerPulseGlow {
+  0% {
+    border-color: var(--border-neon);
+    box-shadow: var(--shadow-glass), var(--shadow-neon);
+  }
+  50% {
+    border-color: var(--border-neon-active);
+    box-shadow: var(--shadow-glass), 0 0 25px rgba(0, 240, 255, 0.6);
+  }
+  100% {
+    border-color: var(--border-neon);
+    box-shadow: var(--shadow-glass), var(--shadow-neon);
+  }
+}
+
+.mode-banner {
+  animation: bannerPulseGlow 3s infinite ease-in-out;
+}
+
+/* Voice Toast Notification HUD confirmation overlay */
+.voice-toast {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translate(-50%, 50px);
+  opacity: 0;
+  background: rgba(14, 25, 44, 0.85);
+  border: 1px solid var(--border-neon-active);
+  box-shadow: var(--shadow-glass), var(--shadow-neon);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--color-primary);
+  padding: 12px 28px;
+  border-radius: 30px;
+  z-index: 2147483647;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  font-family: var(--font-family);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+}
+
+.voice-toast.show {
+  transform: translate(-50%, 0);
+  opacity: 1;
 }

@@ -19,6 +19,7 @@ export class UIController {
     this.bindMobileNavigation();
     this.bindSelectionCallback();
     this.bindXRSessionTriggers();
+    this.bindLoaderStartActions();
   }
 
   // Bind side control panel switches
@@ -284,11 +285,15 @@ export class UIController {
     this.voiceEngine.onCommand = (cmd) => {
       console.log("UIController: Executing voice command: ", cmd);
 
+      let actionMsg = "";
+
       switch (cmd.type) {
         case 'RESET':
+          actionMsg = "Reset Scene";
           this.engine.resetScene();
           break;
         case 'SCALE':
+          actionMsg = cmd.value === 'UP' ? "Zoomed In" : "Zoomed Out";
           if (this.engine.heartGroup) {
             const current = this.engine.heartGroup.scale.x;
             const factor = cmd.value === 'UP' ? 1.25 : 0.8;
@@ -296,6 +301,7 @@ export class UIController {
           }
           break;
         case 'ROTATE':
+          actionMsg = cmd.value === 'ON' ? "Auto-Rotation Enabled" : "Auto-Rotation Stopped";
           const rotSlider = document.getElementById('slider-rotation-speed');
           const rotVal = document.getElementById('rotation-speed-val');
           const val = cmd.value === 'ON' ? 0.05 : 0.0;
@@ -304,11 +310,13 @@ export class UIController {
           if (rotVal) rotVal.textContent = cmd.value === 'ON' ? '5%' : '0%';
           break;
         case 'BLOOD_FLOW':
+          actionMsg = cmd.value ? "Blood Flow Enabled" : "Blood Flow Disabled";
           const flowSwitch = document.getElementById('switch-flow');
           if (flowSwitch) flowSwitch.checked = cmd.value;
           this.engine.setBloodFlowEnabled(cmd.value);
           break;
         case 'CROSS_SECTION':
+          actionMsg = cmd.value ? "Cross Section Enabled" : "Cross Section Disabled";
           const sectSwitch = document.getElementById('switch-section');
           const slSlider = document.getElementById('slider-slice-pos');
           if (sectSwitch) sectSwitch.checked = cmd.value;
@@ -316,12 +324,19 @@ export class UIController {
           this.engine.setCrossSectionEnabled(cmd.value);
           break;
         case 'HIGHLIGHT':
+          const anatomyName = HeartData[cmd.value] ? HeartData[cmd.value].name : cmd.value;
+          actionMsg = `Highlighting: ${anatomyName}`;
           this.engine.selectAnatomy(cmd.value);
           break;
         case 'SPEAK_INFO':
+          actionMsg = "Reading Medical Information";
           const speakBtn = document.getElementById('btn-read-info');
           if (speakBtn) speakBtn.click();
           break;
+      }
+
+      if (actionMsg) {
+        this.showVoiceToast(`🎙️ ${actionMsg}`);
       }
     };
   }
@@ -604,5 +619,80 @@ export class UIController {
     } else {
       container.style.display = 'none';
     }
+  }
+
+  bindLoaderStartActions() {
+    const btnStartZapbox = document.getElementById('btn-start-zapbox');
+    const btnStartDesktop = document.getElementById('btn-start-desktop');
+    const loaderOverlay = document.getElementById('loader');
+
+    if (btnStartZapbox) {
+      btnStartZapbox.addEventListener('click', async () => {
+        // Hide loader overlay
+        if (loaderOverlay) {
+          loaderOverlay.classList.add('fade-out');
+        }
+        // Start VR session directly (which functions as VR Lab/Zapbox)
+        try {
+          const btnVr = document.getElementById('btn-vr');
+          if (btnVr) btnVr.classList.add('active');
+          await this.transitionToMode('vr', () => this.vrManager.startSession());
+        } catch (err) {
+          console.error("UIController: Failed to auto-start VR session:", err);
+        }
+      });
+
+      // Hover effects for the button
+      btnStartZapbox.addEventListener('mouseenter', () => {
+        btnStartZapbox.style.transform = 'scale(1.05)';
+        btnStartZapbox.style.boxShadow = '0 0 35px rgba(0, 240, 255, 0.8)';
+      });
+      btnStartZapbox.addEventListener('mouseleave', () => {
+        btnStartZapbox.style.transform = 'scale(1.0)';
+        btnStartZapbox.style.boxShadow = '0 0 25px rgba(0, 240, 255, 0.5)';
+      });
+    }
+
+    if (btnStartDesktop) {
+      btnStartDesktop.addEventListener('click', () => {
+        if (loaderOverlay) {
+          loaderOverlay.classList.add('fade-out');
+        }
+      });
+
+      btnStartDesktop.addEventListener('mouseenter', () => {
+        btnStartDesktop.style.background = 'rgba(255, 255, 255, 0.1)';
+        btnStartDesktop.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+        btnStartDesktop.style.color = '#ffffff';
+      });
+      btnStartDesktop.addEventListener('mouseleave', () => {
+        btnStartDesktop.style.background = 'rgba(255, 255, 255, 0.05)';
+        btnStartDesktop.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+        btnStartDesktop.style.color = 'rgba(255, 255, 255, 0.7)';
+      });
+    }
+  }
+
+  showVoiceToast(message) {
+    // Remove any existing voice toast
+    const existing = document.querySelector('.voice-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'voice-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Force reflow
+    toast.offsetHeight;
+
+    // Show toast
+    toast.classList.add('show');
+
+    // Fade out and remove after 2.5 seconds
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 400);
+    }, 2500);
   }
 }

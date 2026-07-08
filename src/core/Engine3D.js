@@ -353,9 +353,21 @@ export class Engine3D {
 
       // Complete Loading
       setTimeout(() => {
-        const loaderOverlay = document.getElementById('loader');
-        if (loaderOverlay) {
-          loaderOverlay.classList.add('fade-out');
+        const loaderStatusEl = document.getElementById('loader-status');
+        if (loaderStatusEl) loaderStatusEl.textContent = 'Anatomy Engine Ready';
+
+        const progressContainer = document.querySelector('.progress-bar-container');
+        if (progressContainer) progressContainer.style.display = 'none';
+
+        const actionsEl = document.getElementById('loader-start-actions');
+        if (actionsEl) {
+          actionsEl.style.display = 'flex';
+        } else {
+          // Fallback if elements do not exist
+          const loaderOverlay = document.getElementById('loader');
+          if (loaderOverlay) {
+            loaderOverlay.classList.add('fade-out');
+          }
         }
       }, 500);
     });
