@@ -17,6 +17,68 @@ MediXR is an interactive WebXR medical education application designed to visuali
 
 ---
 
+## 📂 Complete Folder Structure
+
+Here is the full layout of files and assets in the project:
+
+```
+webxr_PROJECT/
+│
+├── index.html                     # Main HTML application layout, CDNs, and UI overlays
+├── server.js                      # Custom HTTP/HTTPS Node.js dev server with auto-SSL
+├── package.json                   # Project scripts and package configuration metadata
+├── realistic_human_heart.glb      # Root medically accurate GLB 3D heart model file
+├── favicon.ico                    # Browser favicon icon
+│
+├── certs/                         # SSL Certificate files for local HTTPS testing
+│   ├── generate.ps1               # PowerShell SSL generator command script
+│   └── server.pfx                 # Generated PKCS#12 SSL/TLS Certificate archive
+│
+├── assets/                        # Shared project assets (diagrams, 3D GLTF models)
+│   ├── images/                    # Anatomical reference diagram overlays
+│   │   ├── aorta.png              # Aorta clinical reference image diagram
+│   │   ├── atrium.png             # Atria clinical reference image diagram
+│   │   ├── pulmonary_artery.png   # Pulmonary artery clinical reference image
+│   │   ├── vena_cava.png          # Vena Cava clinical reference image diagram
+│   │   ├── ventricle.png          # Ventricles clinical reference image diagram
+│   │   └── medixr_ui_mockup.png   # Premium UI interface preview banner
+│   │
+│   └── models/                    # Subfolder containing 3D GLTF model files
+│       ├── README.md              # Model documentation notes
+│       ├── realistic_human_heart.glb # Main heart model copy inside assets
+│       └── skeleton.glb           # Chest ribcage skeleton context model
+│
+├── styles/                        # Style assets folder
+│   └── main.css                   # Main Glassmorphic Dark UI & layout stylesheet
+│
+└── src/                           # Modular application source code directory
+    ├── ar/                        # Augmented Reality (AR) scripts
+    │   └── ARManager.js           # AR session events, hit testing, and floor placement
+    │
+    ├── vr/                        # Virtual Reality (VR) scripts
+    │   └── VRManager.js           # VR room setup, 6DoF controller rays, and grab physics
+    │
+    ├── core/                      # Application core engine modules
+    │   ├── App.js                 # App coordinator, entry, and WebXR session listener
+    │   ├── Engine3D.js            # Core Three.js render loop, lights, and simulated modes
+    │   └── ModelLoader.js         # Model importer, progress tracker, and PBR materials
+    │
+    ├── ui/                        # User interface modules
+    │   ├── UIController.js        # Event binder for HUD, panels, sliders, and buttons
+    │   └── Accessibility.js       # Accessibility features, high contrast, and screen readers
+    │
+    ├── voice/                     # Voice recognition and synthesis
+    │   └── VoiceEngine.js         # Speech commands listener and medical text TTS reader
+    │
+    └── utils/                     # Utility services and geometry generators
+        ├── HeartData.js           # Detailed medical descriptions & pathology conditions database
+        ├── HeartGeometry.js       # Procedural heart chambers (fallback geometry generator)
+        ├── ShaderMaterials.js     # Custom WebGL shaders (blood flows, heartbeat contraction)
+        └── SkeletonGeometry.js    # Procedural skeleton (fallback geometry generator)
+```
+
+---
+
 ## 🚀 Getting Started
 
 ### 1. Run the Project
