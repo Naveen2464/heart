@@ -2,6 +2,14 @@
 
 MediXR is a premium, interactive WebXR medical education application designed to visualize and inspect a medically accurate 3D model of the human heart. Built on **Three.js** and native **WebXR APIs** (enhanced with the Zappar XR Polyfill), the application bridges desktop 3D simulation with fully immersive Augmented Reality (AR) and Virtual Reality (VR) environments.
 
+## 🎥 Project Video Walkthrough
+
+Watch the application in action showing the 3D heart model loading, voice commands, simulation controls, and AR camera placements:
+
+https://github.com/Naveen2464/heart/raw/main/assets/demo_walkthrough.mp4
+
+*(Note: Once you record your screen, add your video file to the `assets/` directory and name it `demo_walkthrough.mp4` to automatically render the player directly on GitHub.)*
+
 ---
 
 ## 🌟 Key Features
@@ -109,9 +117,12 @@ Make sure you have [Node.js](https://nodejs.org/) installed (LTS version recomme
 
 ### 🛠️ Setup & Running
 
-1.  **Clone / Copy the directory** to your local workspace.
-2.  **Open a terminal** in the project directory.
-3.  **Run the local development server:**
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/Naveen2464/heart.git
+    cd heart
+    ```
+2.  **Run the local development server:**
     ```bash
     npm run dev
     ```
