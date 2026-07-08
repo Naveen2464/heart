@@ -151,32 +151,7 @@ export class VRManager {
     platform.name = "platform";
     this.vrEnvironment.add(platform);
 
-    // 3. Heart Podium
-    const podiumGeo = new THREE.CylinderGeometry(0.35, 0.5, 0.8, 32);
-    const podiumMat = new THREE.MeshPhysicalMaterial({
-      color: 0x0f172a,
-      roughness: 0.1,
-      metalness: 0.9,
-      clearcoat: 1.0
-    });
-    const podium = new THREE.Mesh(podiumGeo, podiumMat);
-    podium.position.set(0, floorY + 0.45, -1.2);
-    podium.castShadow = true;
-    podium.receiveShadow = true;
-    podium.name = "podium";
-    this.vrEnvironment.add(podium);
 
-    // Glowing holographic pedestal ring
-    const ringGeo = new THREE.RingGeometry(0.33, 0.35, 32);
-    ringGeo.rotateX(-Math.PI / 2);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff,
-      side: THREE.DoubleSide
-    });
-    const glowRing = new THREE.Mesh(ringGeo, ringMat);
-    glowRing.position.set(0, floorY + 0.86, -1.2);
-    glowRing.name = "glow_ring";
-    this.vrEnvironment.add(glowRing);
 
     // 4. Background laboratory structural halos (sci-fi wall/cage feel)
     for (let i = 0; i < 3; i++) {

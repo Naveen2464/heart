@@ -216,29 +216,6 @@ export class Engine3D {
     vrGrid.position.y = -1.2;
     this.vrSimGroup.add(vrGrid);
 
-    // Glowing podium cylinder (0.5 top, 0.6 bottom, 1.0 height)
-    const podiumGeo = new THREE.CylinderGeometry(0.5, 0.6, 1.0, 32);
-    this.podiumMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.1,
-      metalness: 0.9,
-      emissive: 0x581c87,
-      emissiveIntensity: 0.5
-    });
-    const podium = new THREE.Mesh(podiumGeo, this.podiumMat);
-    podium.position.y = -0.8; // top is at y=-0.3
-    this.vrSimGroup.add(podium);
-
-    // Glowing podium rim ring (aligned with top surface of podium)
-    const ringGeo = new THREE.RingGeometry(0.48, 0.52, 32);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xa855f7,
-      side: THREE.DoubleSide
-    });
-    this.rimRing = new THREE.Mesh(ringGeo, ringMat);
-    this.rimRing.rotation.x = Math.PI / 2;
-    this.rimRing.position.y = -0.29;
-    this.vrSimGroup.add(this.rimRing);
   }
 
   setAppMode(mode) {
@@ -347,13 +324,13 @@ export class Engine3D {
       // Update label anchors if a realistic model with region mapping was loaded
       if (this.heartGroup.userData && this.heartGroup.userData.isRealisticModel) {
         this.labelAnchors = {
-          left_ventricle: new THREE.Vector3(-0.35, -0.6, 0.4),
-          right_ventricle: new THREE.Vector3(0.35, -0.4, 0.5),
-          left_atrium: new THREE.Vector3(-0.45, 0.2, 0.2),
-          right_atrium: new THREE.Vector3(0.45, 0.25, 0.3),
-          aorta: new THREE.Vector3(-0.15, 0.8, 0.2),
-          pulmonary_artery: new THREE.Vector3(0.05, 0.45, 0.5),
-          vena_cava: new THREE.Vector3(0.55, 0.7, -0.1)
+          left_ventricle: new THREE.Vector3(-1.0, -1.725, 1.15),
+          right_ventricle: new THREE.Vector3(1.0, -1.15, 1.44),
+          left_atrium: new THREE.Vector3(-1.29, 0.58, 0.58),
+          right_atrium: new THREE.Vector3(1.29, 0.72, 0.86),
+          aorta: new THREE.Vector3(-0.43, 2.3, 0.58),
+          pulmonary_artery: new THREE.Vector3(0.14, 1.29, 1.44),
+          vena_cava: new THREE.Vector3(1.58, 2.01, -0.29)
         };
       }
 
@@ -967,6 +944,9 @@ export class Engine3D {
       this.heartGroup.add(this.spriteLabelsGroup);
     }
 
+    // Force updates to ensure matrix operations have correct world coordinates
+    this.heartGroup.updateMatrixWorld(true);
+
     Object.keys(this.labelAnchors).forEach(key => {
       const name = HeartData[key] ? HeartData[key].name : key;
 
@@ -1060,21 +1040,36 @@ export class Engine3D {
 
     if (!this.showLabels || !this.heartGroup) return;
 
+    // Enforce matrix updates on both camera and heart model group to avoid 1-frame lags
+    this.camera.updateMatrixWorld(true);
+    this.heartGroup.updateMatrixWorld(true);
+
     const tempV = new THREE.Vector3();
     const widthHalf = (this.container.clientWidth || window.innerWidth) / 2;
     const heightHalf = (this.container.clientHeight || window.innerHeight) / 2;
+
+    const isRealistic = this.heartGroup.userData && this.heartGroup.userData.isRealisticModel;
 
     Object.keys(this.labelAnchors).forEach(key => {
       const anchor = this.labelAnchors[key];
       const element = this.labelElements[key];
       if (!element) return;
 
-      // Map local heart space to world space coordinates
       tempV.copy(anchor);
-      const isRealistic = this.heartGroup.userData && this.heartGroup.userData.isRealisticModel;
-      if (this.isExploded && isRealistic) {
-        tempV.multiplyScalar(1.45); // shift anchors outwards for realistic model
+
+      // If exploded view is enabled, apply outward scaling shift to anchors
+      if (this.isExploded) {
+        if (isRealistic) {
+          tempV.multiplyScalar(1.45); // shift anchors outwards for realistic model
+        } else {
+          // For procedural model, dynamically shift using exploded offsets if meshes exist
+          const mesh = this.heartGroup.getObjectByName(key);
+          if (mesh && this.explodedOffsets[key]) {
+            tempV.add(this.explodedOffsets[key]);
+          }
+        }
       }
+
       this.heartGroup.localToWorld(tempV);
 
       // Project to 2D normalized screen space [-1, 1]
