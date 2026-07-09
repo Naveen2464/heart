@@ -35,6 +35,16 @@ export class Engine3D {
     this.selectedMesh = null;
     this.onSelectionChanged = null; // callback to UI
 
+    // VR/AR Selection-Repositioning State
+    this.preSelectionHeartPosition = null;
+    this.preSelectionInfoPanelPosition = null;
+    this.preSelectionInfoPanelRotation = null;
+    this.targetHeartPosition = null;
+    this.targetInfoPanelPosition = null;
+    this.targetInfoPanelRotationY = undefined;
+    this.wasGrabbed = false;
+    this.xrReferenceSpaceType = 'local';
+
     this.skeletonGroup = null;
     this.heartGroup = null;
     this.particles = null;
@@ -216,6 +226,13 @@ export class Engine3D {
     vrGrid.position.y = -1.2;
     this.vrSimGroup.add(vrGrid);
 
+  }
+
+  setReferenceSpaceType(type) {
+    if (this.renderer && this.renderer.xr) {
+      this.renderer.xr.setReferenceSpaceType(type);
+    }
+    this.xrReferenceSpaceType = type;
   }
 
   setAppMode(mode) {
@@ -754,6 +771,27 @@ export class Engine3D {
       this.selectedMesh.userData._selectedNameId = nameId;
       this.updateVRInfoPanel(nameId);
 
+      // Reposition heart group and VR Info panel to be side-by-side in VR mode only
+      if (this.appMode === 'vr') {
+        if (this.heartGroup) {
+          if (!this.preSelectionHeartPosition) {
+            this.preSelectionHeartPosition = this.heartGroup.position.clone();
+          }
+          if (this.vrInfoPanel && !this.preSelectionInfoPanelPosition) {
+            this.preSelectionInfoPanelPosition = this.vrInfoPanel.position.clone();
+            this.preSelectionInfoPanelRotation = this.vrInfoPanel.rotation.clone();
+          }
+
+          const isFloorSpace = (this.xrReferenceSpaceType === 'local-floor');
+          const heartY = isFloorSpace ? 1.3 : 0.0;
+          // Pull heart back and shift to the left (further away and wider)
+          this.targetHeartPosition = new THREE.Vector3(-0.8, heartY, -3.0);
+          // Position Info Panel further and to the right, facing user
+          this.targetInfoPanelPosition = new THREE.Vector3(0.8, heartY, -2.4);
+          this.targetInfoPanelRotationY = -Math.atan2(0.8, 2.4);
+        }
+      }
+
       // Make selected parts fully visible and highlighted, and make non-matching parts
       // semi-transparent so the rest of the heart remains visible (contextual visualization)
       this.heartGroup.traverse(node => {
@@ -849,6 +887,17 @@ export class Engine3D {
 
     // Restore all mesh opacities and visibility
     this._restoreAllMeshOpacities();
+
+    // Restore selection-based side-by-side positions in VR mode only
+    if (this.appMode === 'vr') {
+      if (this.preSelectionHeartPosition) {
+        this.targetHeartPosition = this.preSelectionHeartPosition.clone();
+      }
+      if (this.preSelectionInfoPanelPosition) {
+        this.targetInfoPanelPosition = this.preSelectionInfoPanelPosition.clone();
+        this.targetInfoPanelRotationY = this.preSelectionInfoPanelRotation.y;
+      }
+    }
 
     if (this.vrInfoPanel) {
       this.vrInfoPanel.visible = false;
@@ -963,19 +1012,19 @@ export class Engine3D {
       const name = HeartData[key] ? HeartData[key].name : key;
 
       const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 64;
+      canvas.width = 512;
+      canvas.height = 128;
       const ctx = canvas.getContext('2d');
 
       // Draw background rounded rectangle with appropriate border color
-      ctx.fillStyle = 'rgba(5, 10, 18, 0.85)';
+      ctx.fillStyle = 'rgba(5, 10, 18, 0.9)';
       let borderColor = '#00f0ff';
       if (key === 'aorta' || key === 'left_ventricle' || key === 'left_atrium') borderColor = '#dc2626';
       if (key === 'pulmonary_artery' || key === 'right_ventricle' || key === 'right_atrium' || key === 'vena_cava') borderColor = '#2563eb';
       ctx.strokeStyle = borderColor;
 
-      ctx.lineWidth = 4;
-      const x = 4, y = 4, w = canvas.width - 8, h = canvas.height - 8, r = 12;
+      ctx.lineWidth = 8;
+      const x = 8, y = 8, w = canvas.width - 16, h = canvas.height - 16, r = 24;
       ctx.beginPath();
       ctx.moveTo(x + r, y);
       ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -988,7 +1037,7 @@ export class Engine3D {
 
       // Draw label text
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 22px Outfit, sans-serif';
+      ctx.font = 'bold 44px Outfit, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(name, canvas.width / 2, canvas.height / 2);
@@ -996,7 +1045,7 @@ export class Engine3D {
       const texture = new THREE.CanvasTexture(canvas);
       const material = new THREE.SpriteMaterial({
         map: texture,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false
       });
       const sprite = new THREE.Sprite(material);
@@ -1007,8 +1056,9 @@ export class Engine3D {
       const labelPos = anchor.clone().add(labelOffset);
       sprite.position.copy(labelPos);
 
-      // Scale sprite to fit the scene size beautifully
-      sprite.scale.set(0.7, 0.175, 1.0);
+      // Scale sprite to fit the scene size beautifully at z=-2.2 distance
+      sprite.scale.set(0.9, 0.225, 1.0);
+      sprite.renderOrder = 1000;
 
       sprite.userData = { nameId: key };
       this.spriteLabelsGroup.add(sprite);
@@ -1019,7 +1069,7 @@ export class Engine3D {
         color: lineColor,
         transparent: true,
         opacity: 0.6,
-        depthTest: false
+        depthTest: true
       });
       const lineGeo = new THREE.BufferGeometry().setFromPoints([
         anchor.clone(),
@@ -1155,6 +1205,50 @@ export class Engine3D {
     // Update WebXR AR Joystick Controls
     if (this.arManager && this.appMode === 'ar') {
       this.arManager.updateARJoystick(delta);
+    }
+
+    // Update selection-repositioning animation for side-by-side layout in VR mode only
+    if (this.appMode === 'vr' && this.heartGroup) {
+      // If a grab just ended, adjust the cached pre-selection position relative to new grabbed place
+      const grabEnded = !this.isGrabbed && this.wasGrabbed;
+      this.wasGrabbed = this.isGrabbed;
+      
+      if (grabEnded && this.selectedMesh && this.preSelectionHeartPosition && this.targetHeartPosition) {
+        const offset = new THREE.Vector3().subVectors(this.targetHeartPosition, this.preSelectionHeartPosition);
+        this.preSelectionHeartPosition.copy(this.heartGroup.position).sub(offset);
+        this.targetHeartPosition.copy(this.heartGroup.position);
+      }
+
+      if (!this.isGrabbed) {
+        if (this.targetHeartPosition) {
+          this.heartGroup.position.lerp(this.targetHeartPosition, 0.1);
+          
+          // Clear cached/target positions once returned back to normal resting place
+          if (!this.selectedMesh && this.preSelectionHeartPosition) {
+            if (this.heartGroup.position.distanceTo(this.preSelectionHeartPosition) < 0.01) {
+              this.heartGroup.position.copy(this.preSelectionHeartPosition);
+              this.preSelectionHeartPosition = null;
+              this.targetHeartPosition = null;
+              
+              if (this.vrInfoPanel && this.preSelectionInfoPanelPosition) {
+                this.vrInfoPanel.position.copy(this.preSelectionInfoPanelPosition);
+                this.vrInfoPanel.rotation.copy(this.preSelectionInfoPanelRotation);
+                this.preSelectionInfoPanelPosition = null;
+                this.targetInfoPanelPosition = null;
+              }
+            }
+          }
+        }
+
+        if (this.vrInfoPanel && this.targetInfoPanelPosition) {
+          this.vrInfoPanel.position.lerp(this.targetInfoPanelPosition, 0.1);
+          if (this.targetInfoPanelRotationY !== undefined) {
+            this.vrInfoPanel.rotation.y = THREE.MathUtils.lerp(this.vrInfoPanel.rotation.y, this.targetInfoPanelRotationY, 0.1);
+          }
+        }
+      }
+    } else {
+      this.wasGrabbed = this.isGrabbed;
     }
 
     // 2. Auto-rotation (pauses when grabbed by controllers)
@@ -1438,8 +1532,8 @@ export class Engine3D {
     }
 
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 384;
+    canvas.width = 1536;
+    canvas.height = 1152;
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.MeshBasicMaterial({
       map: texture,
@@ -1452,11 +1546,24 @@ export class Engine3D {
     this.vrInfoPanel = new THREE.Mesh(geometry, material);
     this.vrInfoPanel.name = "vr_info_panel";
 
-    // Position panel floating to the right of the heart at chest level
-    this.vrInfoPanel.position.set(0.9, 0.65, -0.6);
-    this.vrInfoPanel.rotation.set(0, -Math.PI / 6, 0); // tilt towards center
-    this.vrInfoPanel.visible = false;
+    // Set position dynamically based on appMode and height alignment references
+    if (this.appMode === 'vr') {
+      const isFloorSpace = (this.xrReferenceSpaceType === 'local-floor');
+      const panelY = isFloorSpace ? 1.3 : 0.0;
+      this.vrInfoPanel.position.set(1.8, panelY, -2.0);
+      this.vrInfoPanel.rotation.set(0, -Math.atan2(1.8, 2.0), 0);
+    } else if (this.appMode === 'ar') {
+      const isFloorSpace = (this.xrReferenceSpaceType === 'local-floor');
+      const panelY = isFloorSpace ? 1.2 : 0.0;
+      // Restore original AR default position:
+      this.vrInfoPanel.position.set(0.9, panelY, -1.2);
+      this.vrInfoPanel.rotation.set(0, -Math.PI / 6, 0);
+    } else {
+      this.vrInfoPanel.position.set(0.9, 0.65, -0.6);
+      this.vrInfoPanel.rotation.set(0, -Math.PI / 6, 0);
+    }
 
+    this.vrInfoPanel.visible = false;
     this.scene.add(this.vrInfoPanel);
   }
 
@@ -1472,41 +1579,44 @@ export class Engine3D {
     const canvas = this.vrInfoPanel.material.map.image;
     const ctx = canvas.getContext('2d');
 
-    // Background Panel Paint
+    // Background Panel Paint (Clear previous draw first to prevent semi-transparent blend accumulation)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'rgba(10, 18, 30, 0.95)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.strokeStyle = '#00f0ff';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+    ctx.lineWidth = 18; // 6 * 3
+    ctx.strokeRect(9, 9, canvas.width - 18, canvas.height - 18);
 
     // Title
     ctx.fillStyle = '#00f0ff';
-    ctx.font = 'bold 26px Outfit, Arial, sans-serif';
-    ctx.fillText(data.name, 30, 45);
+    ctx.font = 'bold 78px Outfit, Arial, sans-serif'; // 26 * 3
+    ctx.fillText(data.name, 90, 135); // 30*3, 45*3
 
     // Close Button Box (top right)
     ctx.fillStyle = 'rgba(255, 77, 77, 0.15)';
     ctx.strokeStyle = '#ff4d4d';
-    ctx.lineWidth = 2;
-    ctx.fillRect(410, 18, 72, 28);
-    ctx.strokeRect(410, 18, 72, 28);
+    ctx.lineWidth = 6; // 2 * 3
+    ctx.fillRect(1230, 54, 216, 84); // 410*3, 18*3, 72*3, 28*3
+    ctx.strokeRect(1230, 54, 216, 84);
 
     ctx.fillStyle = '#ff4d4d';
-    ctx.font = 'bold 13px Outfit, sans-serif';
-    ctx.fillText('CLOSE [X]', 417, 36);
+    ctx.font = 'bold 39px Outfit, sans-serif'; // 13 * 3
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('CLOSE [X]', 1251, 108); // 417*3, 36*3
 
     // Divider Line
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 6; // 2 * 3
     ctx.beginPath();
-    ctx.moveTo(30, 65);
-    ctx.lineTo(canvas.width - 30, 65);
+    ctx.moveTo(90, 195); // 30*3, 65*3
+    ctx.lineTo(canvas.width - 90, 195);
     ctx.stroke();
 
     // Helper text-wrap function
     const wrapText = (text, x, y, maxWidth, lineHeight) => {
-      ctx.font = '16px sans-serif';
+      ctx.font = '48px sans-serif'; // 16 * 3
       ctx.fillStyle = '#e2e8f0';
       const words = text.split(' ');
       let line = '';
@@ -1525,21 +1635,21 @@ export class Engine3D {
       return y + lineHeight;
     };
 
-    let startY = 95;
+    let startY = 285; // 95 * 3
     ctx.fillStyle = '#a855f7'; // purple header
-    ctx.font = 'bold 16px Outfit, sans-serif';
-    ctx.fillText('ANATOMICAL FUNCTION', 30, startY);
-    startY = wrapText(data.function, 30, startY + 22, canvas.width - 60, 20) + 10;
+    ctx.font = 'bold 48px Outfit, sans-serif'; // 16 * 3
+    ctx.fillText('ANATOMICAL FUNCTION', 90, startY);
+    startY = wrapText(data.function, 90, startY + 66, canvas.width - 180, 60) + 30; // 22*3, 60*3, 20*3, 10*3
 
     ctx.fillStyle = '#a855f7';
-    ctx.font = 'bold 16px Outfit, sans-serif';
-    ctx.fillText('CLINICAL SIGNIFICANCE', 30, startY);
-    startY = wrapText(data.clinical, 30, startY + 22, canvas.width - 60, 20) + 10;
+    ctx.font = 'bold 48px Outfit, sans-serif';
+    ctx.fillText('CLINICAL SIGNIFICANCE', 90, startY);
+    startY = wrapText(data.clinical, 90, startY + 66, canvas.width - 180, 60) + 30;
 
     ctx.fillStyle = '#a855f7';
-    ctx.font = 'bold 16px Outfit, sans-serif';
-    ctx.fillText('BLOOD FLOW DESCRIPTION', 30, startY);
-    wrapText(data.explanation, 30, startY + 22, canvas.width - 60, 20);
+    ctx.font = 'bold 48px Outfit, sans-serif';
+    ctx.fillText('BLOOD FLOW DESCRIPTION', 90, startY);
+    wrapText(data.explanation, 90, startY + 66, canvas.width - 180, 60);
 
     // Update texture map and make visible in VR modes
     this.vrInfoPanel.material.map.needsUpdate = true;
@@ -1553,8 +1663,8 @@ export class Engine3D {
     }
 
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 384;
+    canvas.width = 1536;
+    canvas.height = 1152;
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.MeshBasicMaterial({
       map: texture,
@@ -1567,14 +1677,28 @@ export class Engine3D {
     this.vrControlPanel = new THREE.Mesh(geometry, material);
     this.vrControlPanel.name = "vr_control_panel";
 
-    // Float to the left of the heart at chest level (opposite to vrInfoPanel)
-    this.vrControlPanel.position.set(-0.9, 0.65, -0.6);
-    this.vrControlPanel.rotation.set(0, Math.PI / 6, 0); // tilt towards center
-    this.vrControlPanel.visible = false;
+    // Set position dynamically based on appMode and height alignment references
+    if (this.appMode === 'vr') {
+      const isFloorSpace = (this.xrReferenceSpaceType === 'local-floor');
+      const panelY = isFloorSpace ? 1.3 : 0.0;
+      this.vrControlPanel.position.set(-1.8, panelY, -2.0);
+      this.vrControlPanel.rotation.set(0, Math.atan2(1.8, 2.0), 0);
+    } else if (this.appMode === 'ar') {
+      const isFloorSpace = (this.xrReferenceSpaceType === 'local-floor');
+      const panelY = isFloorSpace ? 1.2 : 0.0;
+      // Restore original AR default position:
+      this.vrControlPanel.position.set(-0.9, panelY, -1.2);
+      this.vrControlPanel.rotation.set(0, Math.PI / 6, 0);
+    } else {
+      this.vrControlPanel.position.set(-0.9, 0.65, -0.6);
+      this.vrControlPanel.rotation.set(0, Math.PI / 6, 0);
+    }
 
+    this.vrControlPanel.visible = false;
     this.scene.add(this.vrControlPanel);
   }
 
+  // Redraws the 3D VR Control Panel with current toggled statuses
   // Redraws the 3D VR Control Panel with current toggled statuses
   updateVRControlPanel() {
     if (!this.vrControlPanel) this.createVRControlPanel();
@@ -1582,35 +1706,36 @@ export class Engine3D {
     const canvas = this.vrControlPanel.material.map.image;
     const ctx = canvas.getContext('2d');
 
-    // Background Panel Paint
+    // Background Panel Paint (Clear previous draw first to prevent semi-transparent blend accumulation)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'rgba(10, 18, 30, 0.95)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.strokeStyle = '#a855f7'; // Purple border
-    ctx.lineWidth = 6;
-    ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+    ctx.lineWidth = 18; // 6 * 3
+    ctx.strokeRect(9, 9, canvas.width - 18, canvas.height - 18);
 
     // Title
     ctx.fillStyle = '#a855f7';
-    ctx.font = 'bold 24px Outfit, Arial, sans-serif';
-    ctx.fillText('Simulation Controls', 30, 45);
+    ctx.font = 'bold 72px Outfit, Arial, sans-serif'; // 24 * 3
+    ctx.fillText('Simulation Controls', 90, 135); // 30*3, 45*3
 
     // Divider Line
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 6; // 2 * 3
     ctx.beginPath();
-    ctx.moveTo(30, 60);
-    ctx.lineTo(canvas.width - 30, 60);
+    ctx.moveTo(90, 180); // 30*3, 60*3
+    ctx.lineTo(canvas.width - 90, 180);
     ctx.stroke();
 
     // Helper to draw a button
     const drawButton = (text, x, y, w, h, isActive) => {
       ctx.fillStyle = isActive ? 'rgba(0, 240, 255, 0.18)' : 'rgba(255, 255, 255, 0.05)';
       ctx.strokeStyle = isActive ? '#00f0ff' : 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 9; // 3 * 3
       
       // Draw rounded rect
-      const r = 10;
+      const r = 30; // 10 * 3
       ctx.beginPath();
       ctx.moveTo(x + r, y);
       ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -1623,22 +1748,26 @@ export class Engine3D {
 
       // Draw text
       ctx.fillStyle = isActive ? '#00f0ff' : '#cbd5e1';
-      ctx.font = 'bold 15px Outfit, sans-serif';
+      ctx.font = 'bold 45px Outfit, sans-serif'; // 15 * 3
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(text, x + w / 2, y + h / 2);
     };
 
-    // Row 1
-    drawButton(this.isBeating ? 'Heartbeat: ON' : 'Heartbeat: OFF', 40, 90, 200, 50, this.isBeating);
-    drawButton(this.isFlowing ? 'Blood Flow: ON' : 'Blood Flow: OFF', 272, 90, 200, 50, this.isFlowing);
+    // Row 1 (values scaled by 3)
+    drawButton(this.isBeating ? 'Heartbeat: ON' : 'Heartbeat: OFF', 120, 240, 600, 132, this.isBeating);
+    drawButton(this.isFlowing ? 'Blood Flow: ON' : 'Blood Flow: OFF', 816, 240, 600, 132, this.isFlowing);
 
     // Row 2
-    drawButton(this.isTransparency ? 'Transparency: ON' : 'Transparency: OFF', 40, 160, 200, 50, this.isTransparency);
-    drawButton(this.isExploded ? 'Exploded View: ON' : 'Exploded View: OFF', 272, 160, 200, 50, this.isExploded);
+    drawButton(this.isTransparency ? 'Transparency: ON' : 'Transparency: OFF', 120, 420, 600, 132, this.isTransparency);
+    drawButton(this.isExploded ? 'Exploded View: ON' : 'Exploded View: OFF', 816, 420, 600, 132, this.isExploded);
 
-    // Row 3 (Reset)
-    drawButton('Reset Scene Space', 156, 240, 200, 50, false);
+    // Row 3
+    drawButton(this.showLabels ? 'Anatomy Labels: ON' : 'Anatomy Labels: OFF', 120, 600, 600, 132, this.showLabels);
+    drawButton('Controls Guide', 816, 600, 600, 132, false);
+
+    // Row 4
+    drawButton('Reset Scene Space', 468, 780, 600, 132, false);
 
     this.vrControlPanel.material.map.needsUpdate = true;
     this.vrControlPanel.visible = (this.appMode === 'vr');
@@ -1650,7 +1779,8 @@ export class Engine3D {
     let descriptionText = "";
     let titleText = "";
 
-    if (x >= 40 && x <= 240 && y >= 90 && y <= 140) {
+    // Row 1
+    if (x >= 40 && x <= 240 && y >= 80 && y <= 124) {
       const newState = !this.isBeating;
       this.isBeating = newState;
       // Sync DOM
@@ -1661,9 +1791,9 @@ export class Engine3D {
       titleText = "Heartbeat Animation";
       descriptionText = newState 
         ? "Heartbeat animation is now ACTIVE. The chambers contract and expand realistically simulating a cardiac cycle at the specified BPM rate."
-        : "Heartbeat animation has been PAUSED. The heart is in a static diastolic state, allowing close physical study of stationary structural relationships.";
+        : "Heartbeat animation has been PAUSED. The heart is in a static diastolic state, allowing close physical study of stationary relationships.";
     }
-    else if (x >= 272 && x <= 472 && y >= 90 && y <= 140) {
+    else if (x >= 272 && x <= 472 && y >= 80 && y <= 124) {
       const newState = !this.isFlowing;
       this.setBloodFlowEnabled(newState);
       const flowSwitch = document.getElementById('switch-flow');
@@ -1675,7 +1805,8 @@ export class Engine3D {
         ? "Blood Flow particle visualization is now ACTIVE. Crimson oxygenated cells and deep blue deoxygenated cells track directional flows inside the ventricles and vessels."
         : "Blood Flow particle system is now DISABLED. All active micro-particles are hidden to allow an unobstructed view of internal muscular and tissue walls.";
     }
-    else if (x >= 40 && x <= 240 && y >= 160 && y <= 210) {
+    // Row 2
+    else if (x >= 40 && x <= 240 && y >= 140 && y <= 184) {
       const newState = !this.isTransparency;
       this.setTransparencyMode(newState);
       const transSwitch = document.getElementById('switch-transparency');
@@ -1687,7 +1818,7 @@ export class Engine3D {
         ? "Transparency mode is now ACTIVE. Outer muscular tissue becomes translucent, revealing the internal chambers, valves, and blood flow paths in real-time."
         : "Transparency mode is now DISABLED. Fully opaque muscular walls are restored, showing the external vascular structures and fat layers of the heart.";
     }
-    else if (x >= 272 && x <= 472 && y >= 160 && y <= 210) {
+    else if (x >= 272 && x <= 472 && y >= 140 && y <= 184) {
       const newState = !this.isExploded;
       this.setExplodedMode(newState);
       const explodedSwitch = document.getElementById('switch-exploded');
@@ -1699,7 +1830,25 @@ export class Engine3D {
         ? "Exploded View is now ACTIVE. Key anatomical sections (ventricles, atria, aorta, etc.) expand outwards along offset vectors to show spatial assembly details."
         : "Exploded View is now DISABLED. All sections translate back to their original integrated positions to display the fully assembled anatomical structure.";
     }
-    else if (x >= 156 && x <= 356 && y >= 240 && y <= 290) {
+    // Row 3
+    else if (x >= 40 && x <= 240 && y >= 200 && y <= 244) {
+      const newState = !this.showLabels;
+      this.setLabelsEnabled(newState);
+      const labelsSwitch = document.getElementById('switch-labels');
+      if (labelsSwitch) labelsSwitch.checked = newState;
+
+      toggled = true;
+      titleText = "Anatomy Label Tags";
+      descriptionText = newState
+        ? "3D Anatomy labels are now VISIBLE. Floating labels highlight key structures (atria, ventricles, aorta, vena cava, etc.) with physical connecting lines."
+        : "3D Anatomy labels are now HIDDEN. Text tags and connecting lines have been cleared for a clean view of the cardiac structures.";
+    }
+    else if (x >= 272 && x <= 472 && y >= 200 && y <= 244) {
+      this.showVRControlsGuide();
+      return;
+    }
+    // Row 4
+    else if (x >= 156 && x <= 356 && y >= 260 && y <= 304) {
       this.resetScene();
       const rotSlider = document.getElementById('slider-rotation-speed');
       if (rotSlider) rotSlider.value = 0.0;
@@ -1707,6 +1856,8 @@ export class Engine3D {
       if (transSwitch) transSwitch.checked = false;
       const explodedSwitch = document.getElementById('switch-exploded');
       if (explodedSwitch) explodedSwitch.checked = false;
+      const labelsSwitch = document.getElementById('switch-labels');
+      if (labelsSwitch) labelsSwitch.checked = true;
 
       toggled = true;
       titleText = "System Reset Space";
@@ -1803,6 +1954,81 @@ export class Engine3D {
 
     if (this.voiceEngine) {
       this.voiceEngine.speak(`${titleText}. ${descriptionText}`);
+    }
+
+    this.vrInfoPanel.material.map.needsUpdate = true;
+    this.vrInfoPanel.visible = true;
+  }
+
+  // Draw detailed controls guide onto the VR Info Panel
+  showVRControlsGuide() {
+    if (!this.vrInfoPanel) this.createVRInfoPanel();
+
+    const canvas = this.vrInfoPanel.material.map.image;
+    const ctx = canvas.getContext('2d');
+
+    // Background Paint (Clear previous draw first to prevent semi-transparent blend accumulation)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(10, 18, 30, 0.95)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 18; // 6 * 3
+    ctx.strokeRect(9, 9, canvas.width - 18, canvas.height - 18);
+
+    // Title
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 72px Outfit, Arial, sans-serif'; // 24 * 3
+    ctx.fillText('VR Controls Guide', 90, 135); // 30*3, 45*3
+
+    // Close Button Box
+    ctx.fillStyle = 'rgba(255, 77, 77, 0.15)';
+    ctx.strokeStyle = '#ff4d4d';
+    ctx.lineWidth = 6; // 2 * 3
+    ctx.fillRect(1230, 54, 216, 84); // 410*3, 18*3, 72*3, 28*3
+    ctx.strokeRect(1230, 54, 216, 84);
+
+    ctx.fillStyle = '#ff4d4d';
+    ctx.font = 'bold 39px Outfit, sans-serif'; // 13 * 3
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('CLOSE [X]', 1251, 108); // 417*3, 36*3
+
+    // Divider Line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 6; // 2 * 3
+    ctx.beginPath();
+    ctx.moveTo(90, 195); // 30*3, 65*3
+    ctx.lineTo(canvas.width - 90, 195);
+    ctx.stroke();
+
+    const controlsList = [
+      { key: 'Triggers:', desc: 'Point and select anatomy or press panel buttons.' },
+      { key: 'Grips:', desc: 'Grab heart (one/two hands) to move & scale.' },
+      { key: 'R Thumbstick:', desc: 'Rotate heart (or scale it when grabbed).' },
+      { key: 'L Thumbstick:', desc: 'Locomotion movement on floor grid.' },
+      { key: 'Button A:', desc: 'Toggle Heartbeat contraction animation.' },
+      { key: 'Button B:', desc: 'Toggle Controls Guide (this screen).' },
+      { key: 'Buttons X / Y:', desc: 'Toggle Blood Flow / Transparency.' }
+    ];
+
+    let startY = 264; // 88 * 3
+    controlsList.forEach(item => {
+      ctx.fillStyle = '#a855f7'; // Purple header/label
+      ctx.font = 'bold 45px Outfit, sans-serif'; // 15 * 3
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.key, 105, startY); // 35 * 3
+
+      ctx.fillStyle = '#e2e8f0'; // White descriptions
+      ctx.font = '42px sans-serif'; // 14 * 3
+      ctx.fillText(item.desc, 465, startY); // 155 * 3
+
+      startY += 114; // 38 * 3
+    });
+
+    if (this.voiceEngine) {
+      this.voiceEngine.speak("Loading virtual reality controls guide on screen.");
     }
 
     this.vrInfoPanel.material.map.needsUpdate = true;

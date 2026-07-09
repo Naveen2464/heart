@@ -84,7 +84,7 @@ export class ARManager {
       this.engine.renderer.setClearAlpha(0.0);
 
       // Set correct reference space type on Three.js WebXR Manager before initializing session
-      this.engine.renderer.xr.setReferenceSpaceType('local');
+      this.engine.setReferenceSpaceType('local');
       this.engine.renderer.xr.setSession(this.session);
       
       // Configure scene adjustments for AR (hide background, shift scale)
@@ -104,7 +104,7 @@ export class ARManager {
       this.session.requestReferenceSpace('local-floor').then((refSpaceFloor) => {
         console.log("ARManager: 'local-floor' reference space is active. Aligning heights...");
         this.hitTestSpace = refSpaceFloor;
-        this.engine.renderer.xr.setReferenceSpaceType('local-floor');
+        this.engine.setReferenceSpaceType('local-floor');
         this.adjustARHeight(true);
       }).catch((floorErr) => {
         console.warn("ARManager: 'local-floor' not available. Falling back to 'local'.");
@@ -622,9 +622,28 @@ export class ARManager {
 
   // Adjusts the heart group height dynamically once reference space is resolved
   adjustARHeight(isFloorSpace) {
+    // Clear any active selection repositioning caches to align with new space coordinates
+    this.engine.preSelectionHeartPosition = null;
+    this.engine.preSelectionInfoPanelPosition = null;
+    this.engine.preSelectionInfoPanelRotation = null;
+    this.engine.targetHeartPosition = null;
+    this.engine.targetInfoPanelPosition = null;
+    this.engine.targetInfoPanelRotationY = undefined;
+
     if (this.engine.heartGroup) {
       const defaultY = isFloorSpace ? 1.2 : 0.0;
       this.engine.heartGroup.position.set(0, defaultY, -1.2);
+    }
+
+    if (this.engine.vrControlPanel) {
+      const panelY = isFloorSpace ? 1.2 : 0.0;
+      this.engine.vrControlPanel.position.set(-0.9, panelY, -1.2);
+      this.engine.vrControlPanel.rotation.set(0, Math.PI / 6, 0);
+    }
+    if (this.engine.vrInfoPanel) {
+      const panelY = isFloorSpace ? 1.2 : 0.0;
+      this.engine.vrInfoPanel.position.set(0.9, panelY, -1.2);
+      this.engine.vrInfoPanel.rotation.set(0, -Math.PI / 6, 0);
     }
   }
 }

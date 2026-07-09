@@ -6,12 +6,50 @@ export class Accessibility {
     
     this.largeTextActive = false;
     this.highContrastActive = false;
+
+    // Configurable Keyboard Shortcuts
+    this.defaultKeys = {
+      toggleHeartbeat: 'b',
+      toggleFlow: 'f',
+      toggleSlice: 's',
+      toggleControls: 'c',
+      toggleAccessibility: 'h',
+      resetScene: 'r',
+      toggleVoice: 'v'
+    };
+    this.keys = { ...this.defaultKeys };
+    this.rebindingAction = null; // tracks which action is currently listening for a new key
   }
 
   init() {
+    this.loadCustomKeys();
     this.bindDOMEvents();
     this.bindKeyboardShortcuts();
     this.announceToScreenReader("MediXR application loaded. Ready for keyboard or voice navigation.");
+  }
+
+  loadCustomKeys() {
+    try {
+      const saved = localStorage.getItem('medixr_shortcuts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        Object.keys(this.defaultKeys).forEach(action => {
+          if (parsed[action]) {
+            this.keys[action] = parsed[action];
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Accessibility: Error loading custom key shortcuts from localStorage:", e);
+    }
+  }
+
+  saveCustomKeys() {
+    try {
+      localStorage.setItem('medixr_shortcuts', JSON.stringify(this.keys));
+    } catch (e) {
+      console.warn("Accessibility: Error saving custom key shortcuts to localStorage:", e);
+    }
   }
 
   bindDOMEvents() {
@@ -61,6 +99,73 @@ export class Accessibility {
         this.toggleLargeText(e.target.checked);
       });
     }
+
+    // 4. Controls Guide Modal Visibility Toggles
+    const guideBtn = document.getElementById('btn-controls-guide');
+    const closeGuideBtn = document.getElementById('btn-close-controls');
+    const guideModal = document.getElementById('modal-controls-guide');
+
+    if (guideBtn && guideModal) {
+      guideBtn.addEventListener('click', () => {
+        guideModal.classList.remove('hidden');
+        guideModal.querySelector('h2').setAttribute('tabindex', '-1');
+        guideModal.querySelector('h2').focus();
+        this.updateRebindUI();
+      });
+    }
+
+    // Bind custom key rebinding buttons
+    document.querySelectorAll('.rebind-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const action = btn.dataset.action;
+        this.rebindingAction = action;
+        this.updateRebindUI();
+      });
+    });
+
+    const resetKeysBtn = document.getElementById('btn-reset-keys');
+    if (resetKeysBtn) {
+      resetKeysBtn.addEventListener('click', () => {
+        this.keys = { ...this.defaultKeys };
+        this.saveCustomKeys();
+        this.updateRebindUI();
+        this.announceToScreenReader("Keyboard shortcuts reset to default.");
+      });
+    }
+
+    // Bind Tab switching logic for Controls Guide modal
+    const tabBtns = document.querySelectorAll('.modal-tab-btn');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const targetTab = btn.dataset.tab;
+        document.querySelectorAll('.tab-content').forEach(content => {
+          if (content.id === targetTab) {
+            content.classList.remove('hidden');
+          } else {
+            content.classList.add('hidden');
+          }
+        });
+      });
+    });
+
+    if (closeGuideBtn && guideModal) {
+      closeGuideBtn.addEventListener('click', () => {
+        guideModal.classList.add('hidden');
+        if (guideBtn) guideBtn.focus();
+      });
+    }
+
+    if (guideModal) {
+      guideModal.addEventListener('click', (e) => {
+        if (e.target === guideModal) {
+          guideModal.classList.add('hidden');
+          if (guideBtn) guideBtn.focus();
+        }
+      });
+    }
   }
 
   // Bind key inputs for A11y and visual helpers
@@ -76,6 +181,28 @@ export class Accessibility {
     };
 
     window.addEventListener('keydown', (e) => {
+      // Rebinding mode intercept
+      if (this.rebindingAction) {
+        e.preventDefault();
+        const action = this.rebindingAction;
+        const newKey = e.key.toLowerCase();
+
+        // Prevent binding to System keys like Escape or Tab
+        if (newKey === 'escape' || newKey === 'tab') {
+          this.rebindingAction = null;
+          this.updateRebindUI();
+          return;
+        }
+
+        // Rebind the key
+        this.keys[action] = newKey;
+        this.saveCustomKeys();
+        this.rebindingAction = null;
+        this.updateRebindUI();
+        this.announceToScreenReader(`Rebound shortcut to ${newKey.toUpperCase()}`);
+        return;
+      }
+
       // Avoid hotkeys when typing in search bars or inputs
       if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
         return;
@@ -88,11 +215,13 @@ export class Accessibility {
         this.engine.clearSelection();
         const modal = document.getElementById('modal-accessibility');
         if (modal) modal.classList.add('hidden');
+        const guideModal = document.getElementById('modal-controls-guide');
+        if (guideModal) guideModal.classList.add('hidden');
         return;
       }
 
       // Hotkey: reset
-      if (key === 'r') {
+      if (key === this.keys.resetScene) {
         const resetBtn = document.getElementById('btn-reset-scene');
         if (resetBtn) resetBtn.click();
         this.announceToScreenReader("Scene reset.");
@@ -100,7 +229,7 @@ export class Accessibility {
       }
 
       // Hotkey: heartbeat toggle
-      if (key === 'b') {
+      if (key === this.keys.toggleHeartbeat) {
         const beatSwitch = document.getElementById('switch-beat');
         if (beatSwitch) {
           beatSwitch.click();
@@ -110,7 +239,7 @@ export class Accessibility {
       }
 
       // Hotkey: flow toggle
-      if (key === 'f') {
+      if (key === this.keys.toggleFlow) {
         const flowSwitch = document.getElementById('switch-flow');
         if (flowSwitch) {
           flowSwitch.click();
@@ -119,8 +248,17 @@ export class Accessibility {
         return;
       }
 
+      // Hotkey: controls guide toggle
+      if (key === this.keys.toggleControls) {
+        const guideBtn = document.getElementById('btn-controls-guide');
+        if (guideBtn) {
+          guideBtn.click();
+        }
+        return;
+      }
+
       // Hotkey: cross-section toggle
-      if (key === 'c') {
+      if (key === this.keys.toggleSlice) {
         const sectionSwitch = document.getElementById('switch-section');
         if (sectionSwitch) {
           sectionSwitch.click();
@@ -130,7 +268,7 @@ export class Accessibility {
       }
 
       // Hotkey: Voice recording trigger
-      if (key === 'v') {
+      if (key === this.keys.toggleVoice) {
         const micBtn = document.getElementById('btn-voice-toggle');
         if (micBtn) {
           micBtn.click();
@@ -139,7 +277,7 @@ export class Accessibility {
       }
 
       // Hotkey: Accessibility panel
-      if (key === 'h') {
+      if (key === this.keys.toggleAccessibility) {
         const accessBtn = document.getElementById('btn-accessibility');
         if (accessBtn) accessBtn.click();
         return;
@@ -184,6 +322,20 @@ export class Accessibility {
     if (hud) {
       hud.textContent = message;
     }
+  }
+
+  // Update visual text labels of custom key rebinding buttons
+  updateRebindUI() {
+    document.querySelectorAll('.rebind-btn').forEach(btn => {
+      const action = btn.dataset.action;
+      if (this.rebindingAction === action) {
+        btn.textContent = '...';
+        btn.classList.add('rebinding');
+      } else if (this.keys[action]) {
+        btn.textContent = this.keys[action].toUpperCase();
+        btn.classList.remove('rebinding');
+      }
+    });
   }
 }
 export default Accessibility;

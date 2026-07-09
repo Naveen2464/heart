@@ -58,7 +58,7 @@ export class VRManager {
       this.engine.renderer.setClearAlpha(1.0);
       
       // Default to 'local' reference space type synchronously to start the session immediately
-      this.engine.renderer.xr.setReferenceSpaceType('local');
+      this.engine.setReferenceSpaceType('local');
       this.engine.renderer.xr.setSession(this.session);
 
       // Create a camera rig parent group to enable player locomotion movement
@@ -72,10 +72,10 @@ export class VRManager {
       this.setupControllers();
       this.engine.updateVRControlPanel();
 
-      // Reposition heart group in front of the VR camera (eye level y=0.0)
+      // Reposition heart group in front of the VR camera (further away: z = -2.5)
       if (this.engine.heartGroup) {
         this.engine.scene.add(this.engine.heartGroup); // Ensure attached to main scene
-        this.engine.heartGroup.position.set(0, 0.0, -1.2);
+        this.engine.heartGroup.position.set(0, 0.0, -2.5);
         this.engine.heartGroup.scale.set(0.8, 0.8, 0.8);
         this.engine.heartGroup.visible = true; // Ensure visibility
       }
@@ -84,7 +84,7 @@ export class VRManager {
       this.session.requestReferenceSpace('local-floor').then((refSpace) => {
         console.log("VRManager: 'local-floor' reference space is active. Aligning heights...");
         // Tell Three.js manager to use local-floor
-        this.engine.renderer.xr.setReferenceSpaceType('local-floor');
+        this.engine.setReferenceSpaceType('local-floor');
         this.adjustEnvironmentHeight(true);
       }).catch((floorErr) => {
         console.warn("VRManager: 'local-floor' not available. Keeping 'local' space layout.");
@@ -222,11 +222,32 @@ export class VRManager {
   // Adjusts the VR environment and heart coordinates dynamically after startup space is resolved
   adjustEnvironmentHeight(isFloorSpace) {
     // Keep environment relative to camera origin (eye level) for guaranteed visibility across all devices
-    const floorY = -1.2;
+    const floorY = isFloorSpace ? 0.0 : -1.6;
+    const heartY = isFloorSpace ? 1.3 : 0.0;
 
-    // Adjust heart position to eye-level (y = 0.0)
+    // Clear any active selection repositioning caches to align with new space coordinates
+    this.engine.preSelectionHeartPosition = null;
+    this.engine.preSelectionInfoPanelPosition = null;
+    this.engine.preSelectionInfoPanelRotation = null;
+    this.engine.targetHeartPosition = null;
+    this.engine.targetInfoPanelPosition = null;
+    this.engine.targetInfoPanelRotationY = undefined;
+
+    // Adjust heart position to eye-level (y = heartY, z = -2.5)
     if (this.engine.heartGroup) {
-      this.engine.heartGroup.position.set(0, 0.0, -1.2);
+      this.engine.heartGroup.position.set(0, heartY, -2.5);
+    }
+
+    // Adjust VR panel positions to chest level and rotate to face user exactly (further away)
+    if (this.engine.vrControlPanel) {
+      const panelY = isFloorSpace ? 1.3 : 0.0;
+      this.engine.vrControlPanel.position.set(-1.8, panelY, -2.0);
+      this.engine.vrControlPanel.rotation.set(0, Math.atan2(1.8, 2.0), 0);
+    }
+    if (this.engine.vrInfoPanel) {
+      const panelY = isFloorSpace ? 1.3 : 0.0;
+      this.engine.vrInfoPanel.position.set(1.8, panelY, -2.0);
+      this.engine.vrInfoPanel.rotation.set(0, -Math.atan2(1.8, 2.0), 0);
     }
 
     // Adjust VR environment child positions if they exist
@@ -743,20 +764,17 @@ export class VRManager {
                 ? "Heartbeat animation is now ACTIVE. The chambers contract and expand realistically simulating a cardiac cycle at the specified BPM rate."
                 : "Heartbeat animation has been PAUSED. The heart is in a static diastolic state, allowing close physical study of stationary structural relationships.");
             }
-            // Button B (index 5) -> Toggle Exploded View
+
+            // Button B (index 5) -> Toggle VR Controls Guide
             if (checkClick(5)) {
-              console.log("VRManager: Button B clicked. Toggling Exploded View.");
+              console.log("VRManager: Button B clicked. Toggling VR Controls Guide.");
               this.triggerVRHaptic(controllerObj, 0.45, 60);
               
-              const newState = !this.engine.isExploded;
-              this.engine.setExplodedMode(newState);
-              const explodedSwitch = document.getElementById('switch-exploded');
-              if (explodedSwitch) explodedSwitch.checked = newState;
-              
-              this.engine.updateVRControlPanel();
-              this.engine.showVRSimulationInfo("Exploded View Mode", newState
-                ? "Exploded View is now ACTIVE. Key anatomical sections (ventricles, atria, aorta, etc.) expand outwards along offset vectors to show spatial assembly details."
-                : "Exploded View is now DISABLED. All sections translate back to their original integrated positions to display the fully assembled anatomical structure.");
+              if (this.engine.vrInfoPanel && this.engine.vrInfoPanel.visible) {
+                this.engine.clearSelection();
+              } else {
+                this.engine.showVRControlsGuide();
+              }
             }
           }
 

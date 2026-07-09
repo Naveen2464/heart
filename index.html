@@ -101,6 +101,12 @@
             <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H9V9H3V7h18v2z" />
           </svg>
         </button>
+        <button id="btn-controls-guide" class="util-btn" title="Controls Guide (Press 'C')"
+          aria-label="Open Controls Guide">
+          <svg class="icon" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-6h2v6zm0-4h-2v-2h2v2z" />
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -394,6 +400,109 @@
               <input type="checkbox" id="switch-sr-hud" checked>
               <span class="slider round"></span>
             </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls Guide Modal (Hidden by Default) -->
+    <div id="modal-controls-guide" class="modal-overlay hidden">
+      <div class="modal-content glass-card" style="width: 90%; max-width: 480px;">
+        <div class="modal-header">
+          <h2>Controls & Shortcuts</h2>
+          <button id="btn-close-controls" class="close-btn" aria-label="Close Modal">&times;</button>
+        </div>
+        
+        <!-- Tab selector headers -->
+        <div class="modal-tabs" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: rgba(5, 10, 18, 0.4);">
+          <button class="modal-tab-btn active" data-tab="tab-keyboard" style="flex: 1; padding: 12px; background: transparent; border: none; border-bottom: 3px solid var(--color-primary); color: #ffffff; font-weight: 600; font-family: var(--font-family); cursor: pointer; transition: all 0.3s; outline: none;">Desktop Keys</button>
+          <button class="modal-tab-btn" data-tab="tab-vr" style="flex: 1; padding: 12px; background: transparent; border: none; border-bottom: 3px solid transparent; color: var(--color-text-muted); font-weight: 600; font-family: var(--font-family); cursor: pointer; transition: all 0.3s; outline: none;">VR Gamepad</button>
+        </div>
+
+        <div class="modal-body" style="padding: 20px; max-height: 65vh; overflow-y: auto;">
+          <!-- Tab 1: Keyboard Rebinding -->
+          <div id="tab-keyboard" class="tab-content" style="display: flex; flex-direction: column; gap: 15px;">
+            <p style="font-size: 0.85rem; color: var(--color-text-muted); margin: 0 0 10px 0; text-align: center;">Click any key box below to rebind that command to a custom key.</p>
+            
+            <div class="rebinder-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; color: #ffffff;">Toggle Heartbeat</span>
+              <button class="rebind-btn" data-action="toggleHeartbeat" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); color: var(--color-primary); min-width: 64px; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-family: monospace; cursor: pointer; transition: all 0.2s; outline: none;">B</button>
+            </div>
+            
+            <div class="rebinder-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; color: #ffffff;">Toggle Blood Flow</span>
+              <button class="rebind-btn" data-action="toggleFlow" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); color: var(--color-primary); min-width: 64px; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-family: monospace; cursor: pointer; transition: all 0.2s; outline: none;">F</button>
+            </div>
+            
+            <div class="rebinder-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; color: #ffffff;">Toggle Cross-Section</span>
+              <button class="rebind-btn" data-action="toggleSlice" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); color: var(--color-primary); min-width: 64px; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-family: monospace; cursor: pointer; transition: all 0.2s; outline: none;">S</button>
+            </div>
+            
+            <div class="rebinder-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; color: #ffffff;">Show Controls Guide</span>
+              <button class="rebind-btn" data-action="toggleControls" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); color: var(--color-primary); min-width: 64px; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-family: monospace; cursor: pointer; transition: all 0.2s; outline: none;">C</button>
+            </div>
+            
+            <div class="rebinder-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; color: #ffffff;">Toggle Accessibility</span>
+              <button class="rebind-btn" data-action="toggleAccessibility" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); color: var(--color-primary); min-width: 64px; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-family: monospace; cursor: pointer; transition: all 0.2s; outline: none;">H</button>
+            </div>
+            
+            <div class="rebinder-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; color: #ffffff;">Reset 3D Space</span>
+              <button class="rebind-btn" data-action="resetScene" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); color: var(--color-primary); min-width: 64px; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-family: monospace; cursor: pointer; transition: all 0.2s; outline: none;">R</button>
+            </div>
+            
+            <div class="rebinder-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; color: #ffffff;">Toggle Voice Control</span>
+              <button class="rebind-btn" data-action="toggleVoice" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); color: var(--color-primary); min-width: 64px; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-family: monospace; cursor: pointer; transition: all 0.2s; outline: none;">V</button>
+            </div>
+
+            <button id="btn-reset-keys" class="primary-btn" style="align-self: center; margin-top: 15px; font-size: 0.85rem; padding: 10px 20px; border-radius: 20px; outline: none;">Reset to Defaults</button>
+          </div>
+
+          <!-- Tab 2: VR Gamepad Legend (without Exploded View) -->
+          <div id="tab-vr" class="tab-content hidden" style="display: flex; flex-direction: column; gap: 15px;">
+            <div class="vr-mapping-item" style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; font-weight: 700; color: #00f0ff;">Triggers</span>
+              <span style="font-size: 0.85rem; color: var(--color-text-muted);">Laser point & click to select anatomy labels or press simulation panel buttons.</span>
+            </div>
+            
+            <div class="vr-mapping-item" style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; font-weight: 700; color: #00f0ff;">Grip (Squeeze) Buttons</span>
+              <span style="font-size: 0.85rem; color: var(--color-text-muted);">Squeeze one controller to grab and move/rotate the heart. Squeeze both and spread/pinch to resize (pinch-to-scale).</span>
+            </div>
+
+            <div class="vr-mapping-item" style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; font-weight: 700; color: #a855f7;">Right Thumbstick / Joystick</span>
+              <span style="font-size: 0.85rem; color: var(--color-text-muted);">Rotate the heart model (normal) or scale the heart up/down (when grabbed/squeezed).</span>
+            </div>
+
+            <div class="vr-mapping-item" style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; font-weight: 700; color: #a855f7;">Left Thumbstick / Joystick</span>
+              <span style="font-size: 0.85rem; color: var(--color-text-muted);">Locomotion movement (walk horizontally on the VR laboratory floor grid).</span>
+            </div>
+
+            <div class="vr-mapping-item" style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; font-weight: 700; color: #e2e8f0;">Button A (Right Controller)</span>
+              <span style="font-size: 0.85rem; color: var(--color-text-muted);">Toggle the Heartbeat contraction animation.</span>
+            </div>
+
+            <div class="vr-mapping-item" style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; font-weight: 700; color: #e2e8f0;">Button B (Right Controller)</span>
+              <span style="font-size: 0.85rem; color: var(--color-text-muted);">Toggle the VR Controls Guide screen.</span>
+            </div>
+
+            <div class="vr-mapping-item" style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; font-weight: 700; color: #e2e8f0;">Button X (Left Controller)</span>
+              <span style="font-size: 0.85rem; color: var(--color-text-muted);">Toggle the crimson & blue Blood Flow particle streams.</span>
+            </div>
+
+            <div class="vr-mapping-item" style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <span style="font-size: 0.95rem; font-weight: 700; color: #e2e8f0;">Button Y (Left Controller)</span>
+              <span style="font-size: 0.85rem; color: var(--color-text-muted);">Toggle the Transparency mode to reveal internal structures.</span>
+            </div>
           </div>
         </div>
       </div>

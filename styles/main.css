@@ -1466,3 +1466,35 @@ body.xr-vr-active .hud-layer {
   transform: translate(-50%, 0);
   opacity: 1;
 }
+
+/* Rebinding custom keys and tab controls guides styling */
+.rebind-btn:hover {
+  background: rgba(0, 240, 255, 0.2) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+.rebind-btn.rebinding {
+  background: rgba(234, 179, 8, 0.15) !important;
+  border-color: #eab308 !important;
+  color: #eab308 !important;
+  animation: keyPulseRebind 1s infinite alternate ease-in-out;
+}
+
+@keyframes keyPulseRebind {
+  0% { opacity: 0.6; }
+  100% { opacity: 1.0; }
+}
+
+.modal-tab-btn:hover {
+  color: #ffffff !important;
+}
+
+.modal-tab-btn.active {
+  color: #ffffff !important;
+  border-bottom-color: var(--color-primary) !important;
+}
+
+.tab-content.hidden {
+  display: none !important;
+}
