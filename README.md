@@ -2,6 +2,10 @@
 
 MediXR is an interactive WebXR medical education application designed to visualize and inspect a medically accurate 3D model of the human heart. It supports **Interactive 3D**, **Augmented Reality (AR)**, **Virtual Reality (VR)**, and **Voice Controls**.
 
+
+https://github.com/user-attachments/assets/04e8d562-664a-4bd5-9f39-86372eba08c5
+
+
 ![MediXR Walkthrough](assets/images/medixr_walkthrough.webp)
 
 *(The animation above displays the actual project loading, the human skeleton chest landing page, and focusing onto the beating 3D heart with animated blood flow particles.)*
