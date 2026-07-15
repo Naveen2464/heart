@@ -88,8 +88,8 @@ webxr_PROJECT/
 Ensure you have [Node.js](https://nodejs.org/) installed, then run in your terminal:
 ```bash
 # Clone the repository
-git clone https://github.com/Naveen2464/heart.git
-cd heart
+git clone https://github.com/Naveen2464/MediXR_Immersive_3D_Human_Heart_Anatomy_Visualizer.git
+cd MediXR_Immersive_3D_Human_Heart_Anatomy_Visualizer
 
 # Run the local server
 npm run dev
